@@ -1,0 +1,40 @@
+{
+  "name": "b-cube-idp",
+  "version": "1.0.0",
+  "description": "B-CUBE OpenID Connect IdP",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types src/worker-configuration.d.ts",
+    "db:migrate:local": "wrangler d1 migrations apply b-cube-idp --local",
+    "db:migrate:remote": "wrangler d1 migrations apply b-cube-idp --remote",
+    "keys": "node scripts/keys.mjs",
+    "client:secret": "node scripts/client-secret.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.16.1",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.16.1",
+  "type": "module",
+  "dependencies": {
+    "ajou-internal-id-federation": "github:AU-Bcube/ajou-internal-id-federation#de3ed48975512c42039ce0832a55293628db7d48",
+    "hono": "^4.13.14",
+    "jose": "^6.2.13"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.9",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.154.0"
+  },
+  "private": true
+}

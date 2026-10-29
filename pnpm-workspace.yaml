@@ -1,0 +1,5 @@
+allowBuilds:
+  'ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#de3ed48975512c42039ce0832a55293628db7d48': true
+  esbuild: true
+  workerd: true
+  sharp: false

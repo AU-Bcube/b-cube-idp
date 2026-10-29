@@ -1,0 +1,17 @@
+# 로컬 개발용 설정. `cp .dev.vars.example .dev.vars` 후 `pnpm keys`가 출력한 값을 채운다.
+# .dev.vars는 절대 커밋하지 않는다.
+
+ISSUER=http://localhost:8787
+# Google 계정과 mhaksa 조회 없이 가짜 학생으로 로그인한다. localhost에서만 켤 수 있다.
+DEV_FAKE_LOGIN=true
+
+SIGNING_KEY=
+ENCRYPTION_SECRET=
+
+# 실제 Google 로그인을 시험할 때만 채운다(DEV_FAKE_LOGIN=false).
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# 로컬 SP 등록. wrangler.jsonc의 CLIENTS를 덮어쓴다.
+# client_secret_sha256은 `pnpm client:secret`으로 만든다.
+CLIENTS=[{"client_id":"domain-console-dev","name":"B-Cube 도메인 콘솔 (로컬)","redirect_uris":["http://localhost:5173/auth/callback"],"scopes":["openid","email","profile","student","sohakoe"],"client_secret_sha256":""}]
