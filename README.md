@@ -3,7 +3,6 @@
 B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Cloudflare Workers에서 동작한다.
 
 - 사용자 인증은 `@ajou.ac.kr` Google Workspace 계정으로만 한다. 비밀번호를 받거나 저장하지 않는다.
-- SP가 학적·소학회 정보를 요청하면 [ajou-internal-id-federation](https://github.com/AU-Bcube/ajou-internal-id-federation)으로 mhaksa에서 조회한다.
 - 조회한 정보는 동의 화면에 그대로 보여주고, 사용자가 동의한 경우에만 SP에 전달한다.
 - 사용자 정보와 학생 정보는 저장하지 않는다. D1에는 SP 등록 정보, 등록 토큰 해시, 관리 감사 로그, 이미 사용한 인가 코드의 ID만 남는다.
 - SP는 `wrangler.jsonc`에 적는 정적 SP와, 관리 화면이나 동적 등록(RFC 7591/7592)으로 만드는 동적 SP 두 종류다.
