@@ -12,7 +12,6 @@
 - SP의 `client_id`와 `client_secret`. 아래 중 하나로 받는다.
   - 관리자에게 요청한다(관리 화면에서 만들어 준다).
   - 관리자에게 등록 토큰(initial access token)을 받아 직접 등록한다. 프롬프트 안의 Claude가 등록 명령을 안내한다.
-- 로컬 개발용 IdP가 필요하면 b-cube-idp 저장소에서 `pnpm dev`를 실행한다(`DEV_FAKE_LOGIN=true`, http://localhost:8787).
 
 비밀값(`client_secret`, `registration_access_token`, 등록 토큰)은 프롬프트에 붙여 넣지 않는다. Claude가 비밀값이 들어갈 자리를 알려주면 직접 넣는다.
 
@@ -21,10 +20,10 @@
 ## 프롬프트
 
 ````text
-ISSUER=https://id.b-cube.kr   SCOPES=openid email profile   LOCAL_ISSUER=http://localhost:8787
+ISSUER=https://id.b-cube.kr   SCOPES=openid email profile
 
 이 저장소의 로그인 기능을 B-CUBE IdP(OpenID Connect)로 전환하라.
-아래의 {ISSUER}, {SCOPES}, {LOCAL_ISSUER}는 첫 줄의 값으로 바꿔 읽어라.
+아래의 {ISSUER}, {SCOPES} 는 첫 줄의 값으로 바꿔 읽어라.
 지금 인증은 자체 인증(아이디/비밀번호 등)이거나 Google OAuth를 직접 부르는 방식일 것이다.
 전환 후에는 이 서비스가 비밀번호나 Google OAuth 클라이언트를 직접 다루지 않고, IdP가 발급한 id_token만 검증한다.
 
@@ -59,7 +58,7 @@ Discovery: {ISSUER}/.well-known/openid-configuration 을 먼저 읽어 아래 �
 
 | 항목 | 값 |
 | --- | --- |
-| issuer | `{ISSUER}` (로컬 개발: `{LOCAL_ISSUER}`) |
+| issuer | `{ISSUER}` |
 | authorization_endpoint | `{ISSUER}/authorize` |
 | token_endpoint | `{ISSUER}/token` |
 | userinfo_endpoint | `{ISSUER}/userinfo` (보통 필요 없다. id_token에 모든 클레임이 있다) |
@@ -115,8 +114,6 @@ scope와 클레임:
    ```
    응답의 `client_secret`, `registration_access_token`은 한 번만 나온다. `b_cube_status`가 `pending`이면 관리자 승인을 기다린다.
    등록 정보 수정·삭제는 `registration_client_uri`에 `Authorization: Bearer <registration_access_token>`으로 GET/PUT/DELETE 한다(RFC 7592).
-
-운영용과 로컬 개발용 redirect_uri가 다르면 둘 다 등록하거나, 로컬은 {LOCAL_ISSUER}의 로컬 IdP를 쓴다.
 
 # 구현 원칙
 
