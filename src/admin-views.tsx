@@ -1,58 +1,12 @@
 /**
- * 관리 화면. 서버에서 렌더링하고 스크립트는 쓰지 않는다. 모든 쓰기는 CSRF 토큰이 든 POST 폼이다.
+ * 관리 화면. IBM Carbon 클래스를 쓰는 서버 렌더링 화면이다. 스크립트는 없고, 모든 쓰기는 CSRF 토큰이 든 POST 폼이다.
  */
 import type { Child, FC } from "hono/jsx";
 import type { AuditLog } from "./audit";
 import { SENSITIVE_SCOPES, TOKEN_AUTH_METHODS, type Client, type DynamicClient } from "./clients";
 import type { InitialAccessToken } from "./initial-access-tokens";
 import { SCOPES } from "./scopes";
-
-const STYLE = `
-:root { color-scheme: light dark; --bg: #f4f4f4; --card: #fff; --fg: #161616; --muted: #525252; --line: #e0e0e0;
-  --primary: #0f62fe; --primary-fg: #fff; --danger: #da1e28; --warn: #8e6a00; --ok: #198038; --code: #f2f4f8; }
-@media (prefers-color-scheme: dark) { :root { --bg: #161616; --card: #262626; --fg: #f4f4f4; --muted: #c6c6c6;
-  --line: #393939; --primary: #4589ff; --danger: #ff8389; --warn: #f1c21b; --ok: #42be65; --code: #393939; } }
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg);
-  font: 14px/1.55 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
-header { background: var(--card); border-bottom: 1px solid var(--line); }
-.bar { max-width: 1040px; margin: 0 auto; padding: 0 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-height: 52px; }
-.bar strong { margin-right: 8px; }
-.bar a { color: var(--fg); text-decoration: none; padding: 4px 0; }
-.bar a:hover { color: var(--primary); }
-.bar .me { margin-left: auto; color: var(--muted); display: flex; gap: 8px; align-items: center; }
-main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; }
-h1 { font-size: 20px; margin: 0 0 16px; }
-h2 { font-size: 16px; margin: 28px 0 10px; }
-p { margin: 0 0 12px; color: var(--muted); }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-.table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
-table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--muted); font-weight: 600; white-space: nowrap; }
-tr:last-child td { border-bottom: 0; }
-a { color: var(--primary); }
-code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }
-.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid currentColor; white-space: nowrap; }
-.s-active { color: var(--ok); } .s-pending { color: var(--warn); } .s-suspended { color: var(--danger); } .s-static { color: var(--muted); }
-.sensitive { color: var(--warn); font-weight: 600; }
-dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
-dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
-label { display: block; font-weight: 600; margin: 12px 0 4px; }
-.hint { font-weight: 400; color: var(--muted); font-size: 13px; }
-input[type=text], input[type=number], textarea, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line);
-  border-radius: 6px; background: transparent; color: var(--fg); font: inherit; }
-textarea { min-height: 76px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-.checks { display: flex; flex-wrap: wrap; gap: 6px 18px; }
-.checks label { display: flex; gap: 6px; align-items: center; font-weight: 400; margin: 0; }
-.row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
-button.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); }
-button.danger { color: var(--danger); border-color: var(--danger); }
-form.inline { display: inline; }
-.secret { background: var(--code); border-radius: 6px; padding: 10px 12px; margin: 4px 0 12px; user-select: all; }
-.notice { border-left: 3px solid var(--warn); padding: 8px 12px; background: var(--card); margin-bottom: 16px; }
-`;
+import { Notice, PageHead } from "./views";
 
 function fmt(ms: number | null): string {
   if (ms === null) return "-";
@@ -60,46 +14,67 @@ function fmt(ms: number | null): string {
   return new Date(ms + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 }
 
-export const AdminLayout: FC<{ title: string; email: string; csrf: string; children: Child }> = ({
+const NAV: [string, string][] = [
+  ["/admin", "SP 목록"],
+  ["/admin/clients/new", "SP 추가"],
+  ["/admin/tokens", "등록 토큰"],
+  ["/admin/audit", "감사 로그"],
+];
+
+export const AdminLayout: FC<{ title: string; email: string; csrf: string; path: string; children: Child }> = ({
   title,
   email,
   csrf,
+  path,
   children,
 }) => (
   <html lang="ko">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="robots" content="noindex" />
-      <title>{`${title} · B-CUBE IdP 관리`}</title>
-      <style>{STYLE}</style>
-    </head>
+    <PageHead title={`${title} · B-CUBE IdP 관리`} />
     <body>
-      <header>
-        <nav class="bar">
-          <strong>B-CUBE IdP 관리</strong>
-          <a href="/admin">SP 목록</a>
-          <a href="/admin/clients/new">SP 추가</a>
-          <a href="/admin/tokens">등록 토큰</a>
-          <a href="/admin/audit">감사 로그</a>
-          <span class="me">
-            {email}
-            <form class="inline" method="post" action="/admin/logout">
-              <input type="hidden" name="csrf" value={csrf} />
-              <button type="submit">로그아웃</button>
-            </form>
-          </span>
+      <header class="cds--header" aria-label="B-CUBE IdP 관리">
+        <a class="cds--header__name" href="/admin">
+          <span class="cds--header__name--prefix">B-CUBE</span>&nbsp;IdP 관리
+        </a>
+        <nav class="cds--header__nav" aria-label="관리 메뉴">
+          <ul class="cds--header__menu-bar">
+            {NAV.map(([href, label]) => (
+              <li>
+                <a class="cds--header__menu-item" href={href} aria-current={path === href ? "page" : undefined}>
+                  <span class="cds--text-truncate--end">{label}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
         </nav>
+        <div class="idp-header-user">
+          <span class="idp-header-email">{email}</span>
+          <form method="post" action="/admin/logout">
+            <input type="hidden" name="csrf" value={csrf} />
+            <button type="submit" class="cds--btn cds--btn--ghost cds--btn--sm cds--layout--size-sm">
+              로그아웃
+            </button>
+          </form>
+        </div>
       </header>
-      <main>{children}</main>
+      <main class="idp-admin-content">{children}</main>
     </body>
   </html>
 );
 
+const Tag: FC<{ color: string; children: Child }> = ({ color, children }) => (
+  <span class={`cds--tag cds--tag--${color} cds--layout--size-md`}>
+    <span class="cds--tag__label">{children}</span>
+  </span>
+);
+
 const Status: FC<{ client: Client }> = ({ client }) => {
-  if (client.source === "static") return <span class="badge s-static">정적</span>;
-  const label = { pending: "승인 대기", active: "활성", suspended: "중지" }[client.status];
-  return <span class={`badge s-${client.status}`}>{label}</span>;
+  if (client.source === "static") return <Tag color="cool-gray">정적</Tag>;
+  const [label, color] = {
+    pending: ["승인 대기", "purple"],
+    active: ["활성", "green"],
+    suspended: ["중지", "red"],
+  }[client.status] as [string, string];
+  return <Tag color={color}>{label}</Tag>;
 };
 
 const Scopes: FC<{ scopes: Iterable<string> }> = ({ scopes }) => (
@@ -107,7 +82,7 @@ const Scopes: FC<{ scopes: Iterable<string> }> = ({ scopes }) => (
     {[...scopes].map((s, i) => (
       <>
         {i > 0 ? " " : ""}
-        <span class={SENSITIVE_SCOPES.has(s as never) ? "sensitive" : ""}>{s}</span>
+        <span class={SENSITIVE_SCOPES.has(s as never) ? "idp-sensitive" : ""}>{s}</span>
       </>
     ))}
   </span>
@@ -118,14 +93,14 @@ export const ClientListPage: FC<{ statics: Client[]; dynamics: DynamicClient[] }
   const rows = [...dynamics, ...statics];
   return (
     <>
-      <h1>SP 목록</h1>
-      {pending > 0 ? <div class="notice">승인을 기다리는 SP가 {pending}개 있습니다.</div> : null}
-      <p>
-        정적 SP는 <code>wrangler.jsonc</code>의 <code>CLIENTS</code>에서 관리하므로 여기서 바꿀 수 없습니다. 주황색
+      <h1 class="idp-page-title">SP 목록</h1>
+      {pending > 0 ? <Notice kind="warning" title={`승인을 기다리는 SP가 ${pending}개 있습니다.`} /> : null}
+      <p class="idp-lead">
+        정적 SP는 <code>wrangler.jsonc</code>의 <code>CLIENTS</code>에서 관리하므로 여기서 바꿀 수 없습니다. 강조된
         scope는 학생 정보를 넘기는 scope입니다.
       </p>
-      <div class="table-wrap">
-        <table>
+      <div class="idp-table-wrap">
+        <table class="cds--data-table cds--data-table--lg">
           <thead>
             <tr>
               <th>상태</th>
@@ -148,8 +123,10 @@ export const ClientListPage: FC<{ statics: Client[]; dynamics: DynamicClient[] }
                     <Status client={c} />
                   </td>
                   <td>
-                    <a href={`/admin/clients/${encodeURIComponent(c.clientId)}`}>{c.name}</a>
-                    {c.source === "dynamic" && !c.reviewed ? <div class="hint">미검토</div> : null}
+                    <a class="cds--link" href={`/admin/clients/${encodeURIComponent(c.clientId)}`}>
+                      {c.name}
+                    </a>
+                    {c.source === "dynamic" && !c.reviewed ? <div class="idp-muted">미검토</div> : null}
                   </td>
                   <td class="mono">{c.clientId}</td>
                   <td>
@@ -157,7 +134,7 @@ export const ClientListPage: FC<{ statics: Client[]; dynamics: DynamicClient[] }
                   </td>
                   <td class="mono">
                     {c.redirectUris.map((u) => (
-                      <div>{u}</div>
+                      <div class="idp-uri">{u}</div>
                     ))}
                   </td>
                   <td class="mono">{c.source === "dynamic" ? (c as DynamicClient).createdBy : "wrangler.jsonc"}</td>
@@ -180,6 +157,83 @@ export interface ClientFormValues {
   clientUri: string;
 }
 
+const TextField: FC<{
+  id: string;
+  label: string;
+  helper?: string;
+  value: string;
+  required?: boolean;
+  maxlength?: number;
+}> = ({ id, label, helper, value, required, maxlength }) => (
+  <div class="cds--form-item cds--text-input-wrapper idp-form-row">
+    <label class="cds--label" for={id}>
+      {label}
+    </label>
+    <div class="cds--text-input__field-outer-wrapper">
+      <div class="cds--text-input__field-wrapper">
+        <input
+          id={id}
+          class="cds--text-input cds--text-input--md cds--layout--size-md"
+          type="text"
+          name={id}
+          value={value}
+          required={required}
+          maxlength={maxlength}
+        />
+      </div>
+    </div>
+    {helper ? <div class="cds--form__helper-text">{helper}</div> : null}
+  </div>
+);
+
+const NumberField: FC<{ id: string; label: string; value: string; min: number; max: number }> = ({
+  id,
+  label,
+  value,
+  min,
+  max,
+}) => (
+  <div class="cds--form-item cds--text-input-wrapper idp-form-row">
+    <label class="cds--label" for={id}>
+      {label}
+    </label>
+    <div class="cds--text-input__field-outer-wrapper">
+      <div class="cds--text-input__field-wrapper">
+        <input
+          id={id}
+          class="cds--text-input cds--text-input--md cds--layout--size-md"
+          type="number"
+          name={id}
+          value={value}
+          min={min}
+          max={max}
+          required
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const TextAreaField: FC<{ id: string; label: string; helper: string; value: string; required?: boolean }> = ({
+  id,
+  label,
+  helper,
+  value,
+  required,
+}) => (
+  <div class="cds--form-item idp-form-row">
+    <label class="cds--label" for={id}>
+      {label}
+    </label>
+    <div class="cds--text-area__wrapper">
+      <textarea id={id} class="cds--text-area mono" name={id} rows={3} required={required}>
+        {value}
+      </textarea>
+    </div>
+    <div class="cds--form__helper-text">{helper}</div>
+  </div>
+);
+
 export const ClientForm: FC<{ action: string; csrf: string; values: ClientFormValues; submit: string; error?: string }> = ({
   action,
   csrf,
@@ -187,63 +241,81 @@ export const ClientForm: FC<{ action: string; csrf: string; values: ClientFormVa
   submit,
   error,
 }) => (
-  <form method="post" action={action} class="card">
-    {error ? <div class="notice">{error}</div> : null}
+  <form method="post" action={action} class="idp-panel cds--layer-two">
+    {error ? <Notice kind="error" title="입력을 확인하세요">{error}</Notice> : null}
     <input type="hidden" name="csrf" value={csrf} />
-    <label for="client_name">이름</label>
-    <span class="hint">동의 화면에 그대로 나옵니다.</span>
-    <input id="client_name" type="text" name="client_name" value={values.name} required maxlength={100} />
-    <label for="redirect_uris">
-      redirect_uri <span class="hint">한 줄에 하나. https만(localhost는 http 허용)</span>
-    </label>
-    <textarea id="redirect_uris" name="redirect_uris" required>
-      {values.redirectUris}
-    </textarea>
-    <label>scope</label>
-    <div class="checks">
-      {SCOPES.map((s) => (
-        <label>
-          <input
-            type="checkbox"
-            name="scope"
-            value={s}
-            checked={s === "openid" || values.scopes.has(s)}
-            disabled={s === "openid"}
-          />
-          <span class={SENSITIVE_SCOPES.has(s) ? "sensitive" : ""}>{s}</span>
+    <TextField
+      id="client_name"
+      label="이름"
+      helper="동의 화면에 그대로 나옵니다."
+      value={values.name}
+      required
+      maxlength={100}
+    />
+    <TextAreaField
+      id="redirect_uris"
+      label="redirect_uri"
+      helper="한 줄에 하나. https만(localhost는 http 허용)"
+      value={values.redirectUris}
+      required
+    />
+    <fieldset class="cds--fieldset idp-form-row">
+      <legend class="cds--label">scope</legend>
+      <div class="idp-checks">
+        {SCOPES.map((s) => (
+          <div class="cds--form-item cds--checkbox-wrapper">
+            <input
+              id={`scope-${s}`}
+              class="cds--checkbox"
+              type="checkbox"
+              name="scope"
+              value={s}
+              checked={s === "openid" || values.scopes.has(s)}
+              disabled={s === "openid"}
+            />
+            <label class="cds--checkbox-label" for={`scope-${s}`}>
+              <span class={`cds--checkbox-label-text ${SENSITIVE_SCOPES.has(s) ? "idp-sensitive" : ""}`}>{s}</span>
+            </label>
+          </div>
+        ))}
+      </div>
+    </fieldset>
+    <div class="cds--form-item idp-form-row">
+      <div class="cds--select">
+        <label class="cds--label" for="token_endpoint_auth_method">
+          토큰 엔드포인트 인증
         </label>
-      ))}
+        <div class="cds--select-input__wrapper">
+          <select id="token_endpoint_auth_method" class="cds--select-input" name="token_endpoint_auth_method">
+            {TOKEN_AUTH_METHODS.map((m) => (
+              <option class="cds--select-option" value={m} selected={values.tokenEndpointAuthMethod === m}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <svg class="cds--select__arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 11L3 6l.7-.7L8 9.6l4.3-4.3.7.7z" />
+          </svg>
+        </div>
+      </div>
     </div>
-    <label for="token_endpoint_auth_method">토큰 엔드포인트 인증</label>
-    <select id="token_endpoint_auth_method" name="token_endpoint_auth_method">
-      {TOKEN_AUTH_METHODS.map((m) => (
-        <option value={m} selected={values.tokenEndpointAuthMethod === m}>
-          {m}
-        </option>
-      ))}
-    </select>
-    <label for="contacts">
-      담당자 연락처 <span class="hint">한 줄에 하나(선택)</span>
-    </label>
-    <textarea id="contacts" name="contacts">
-      {values.contacts}
-    </textarea>
-    <label for="client_uri">
-      서비스 주소 <span class="hint">https(선택)</span>
-    </label>
-    <input id="client_uri" type="text" name="client_uri" value={values.clientUri} />
-    <div class="row">
-      <button type="submit" class="primary">
-        {submit}
-      </button>
-    </div>
+    <TextAreaField id="contacts" label="담당자 연락처" helper="한 줄에 하나(선택)" value={values.contacts} />
+    <TextField id="client_uri" label="서비스 주소" helper="https(선택)" value={values.clientUri} />
+    <button type="submit" class="cds--btn cds--btn--lg cds--layout--size-lg cds--btn--primary">
+      {submit}
+    </button>
   </form>
 );
 
-const ActionButton: FC<{ action: string; csrf: string; label: string; kind?: string }> = ({ action, csrf, label, kind }) => (
-  <form class="inline" method="post" action={action}>
+const ActionButton: FC<{ action: string; csrf: string; label: string; kind?: "primary" | "secondary" | "danger" }> = ({
+  action,
+  csrf,
+  label,
+  kind = "secondary",
+}) => (
+  <form method="post" action={action}>
     <input type="hidden" name="csrf" value={csrf} />
-    <button type="submit" class={kind ?? ""}>
+    <button type="submit" class={`cds--btn cds--btn--sm cds--layout--size-sm cds--btn--${kind}`}>
       {label}
     </button>
   </form>
@@ -254,11 +326,11 @@ export const ClientDetailPage: FC<{ client: Client; csrf: string; form?: Child }
   const dyn = client.source === "dynamic" ? (client as DynamicClient) : null;
   return (
     <>
-      <h1>
+      <h1 class="idp-page-title">
         {client.name} <Status client={client} />
       </h1>
-      <div class="card">
-        <dl>
+      <div class="idp-panel cds--layer-two">
+        <dl class="idp-details">
           <dt>client_id</dt>
           <dd class="mono">{client.clientId}</dd>
           <dt>scope</dt>
@@ -268,7 +340,7 @@ export const ClientDetailPage: FC<{ client: Client; csrf: string; form?: Child }
           <dt>redirect_uri</dt>
           <dd class="mono">
             {client.redirectUris.map((u) => (
-              <div>{u}</div>
+              <div class="idp-uri">{u}</div>
             ))}
           </dd>
           {dyn ? (
@@ -298,7 +370,7 @@ export const ClientDetailPage: FC<{ client: Client; csrf: string; form?: Child }
           )}
         </dl>
         {dyn ? (
-          <div class="row">
+          <div class="idp-toolbar">
             {dyn.status === "pending" || !dyn.reviewed ? (
               <ActionButton action={`${base}/approve`} csrf={csrf} label="승인" kind="primary" />
             ) : null}
@@ -314,8 +386,8 @@ export const ClientDetailPage: FC<{ client: Client; csrf: string; form?: Child }
       </div>
       {dyn ? (
         <>
-          <h2>정보 수정</h2>
-          <p>관리자가 고치면 승인 상태를 유지합니다. SP가 RFC 7592로 민감한 scope를 늘리면 다시 승인 대기가 됩니다.</p>
+          <h2 class="idp-section-title">정보 수정</h2>
+          <p class="idp-lead">관리자가 고치면 승인 상태를 유지합니다. SP가 RFC 7592로 민감한 scope를 늘리면 다시 승인 대기가 됩니다.</p>
           {form}
         </>
       ) : null}
@@ -330,17 +402,23 @@ export const SecretShownPage: FC<{ title: string; items: [string, string][]; nex
   note,
 }) => (
   <>
-    <h1>{title}</h1>
-    <div class="notice">아래 값은 지금 한 번만 보여줍니다. IdP에는 해시만 남습니다. SP 담당자에게 안전한 경로로 전달하세요.</div>
-    <div class="card">
+    <h1 class="idp-page-title">{title}</h1>
+    <Notice kind="warning" title="지금 한 번만 보여줍니다">
+      IdP에는 해시만 남습니다. SP 담당자에게 안전한 경로로 전달하세요.
+    </Notice>
+    <div class="idp-panel cds--layer-two">
       {items.map(([k, v]) => (
         <>
-          <div class="hint">{k}</div>
+          <div class="idp-form-title">{k}</div>
           <div class="secret mono">{v}</div>
         </>
       ))}
-      {note ? <p>{note}</p> : null}
-      <a href={next}>계속</a>
+      {note ? <p class="idp-lead">{note}</p> : null}
+      <div class="idp-link-row">
+        <a class="cds--link" href={next}>
+          계속
+        </a>
+      </div>
     </div>
   </>
 );
@@ -349,29 +427,22 @@ export const TokensPage: FC<{ tokens: InitialAccessToken[]; csrf: string; issuer
   const now = Date.now();
   return (
     <>
-      <h1>등록 토큰 (initial access token)</h1>
-      <p>
+      <h1 class="idp-page-title">등록 토큰 (initial access token)</h1>
+      <p class="idp-lead">
         SP 개발자가 <code>POST {issuer}/register</code>로 직접 SP를 등록할 때 쓰는 토큰입니다(RFC 7591). student,
         sohakoe scope를 요청한 SP는 승인할 때까지 쓸 수 없습니다.
       </p>
-      <form method="post" action="/admin/tokens" class="card">
+      <form method="post" action="/admin/tokens" class="idp-panel cds--layer-two">
         <input type="hidden" name="csrf" value={csrf} />
-        <label for="label">
-          용도 <span class="hint">누구에게 주는지</span>
-        </label>
-        <input id="label" type="text" name="label" required maxlength={100} />
-        <label for="max_uses">사용 횟수</label>
-        <input id="max_uses" type="number" name="max_uses" value="1" min={1} max={100} required />
-        <label for="ttl_days">유효 기간(일)</label>
-        <input id="ttl_days" type="number" name="ttl_days" value="7" min={1} max={90} required />
-        <div class="row">
-          <button type="submit" class="primary">
-            발급
-          </button>
-        </div>
+        <TextField id="label" label="용도" helper="누구에게 주는지" value="" required maxlength={100} />
+        <NumberField id="max_uses" label="사용 횟수" value="1" min={1} max={100} />
+        <NumberField id="ttl_days" label="유효 기간(일)" value="7" min={1} max={90} />
+        <button type="submit" class="cds--btn cds--btn--lg cds--layout--size-lg cds--btn--primary">
+          발급
+        </button>
       </form>
-      <div class="table-wrap">
-        <table>
+      <div class="idp-table-wrap">
+        <table class="cds--data-table cds--data-table--lg">
           <thead>
             <tr>
               <th>용도</th>
@@ -403,7 +474,7 @@ export const TokensPage: FC<{ tokens: InitialAccessToken[]; csrf: string; issuer
                       {usable ? (
                         <ActionButton action={`/admin/tokens/${t.id}/revoke`} csrf={csrf} label="폐기" kind="danger" />
                       ) : (
-                        <span class="hint">사용 불가</span>
+                        <span class="idp-muted">사용 불가</span>
                       )}
                     </td>
                   </tr>
@@ -419,10 +490,10 @@ export const TokensPage: FC<{ tokens: InitialAccessToken[]; csrf: string; issuer
 
 export const AuditPage: FC<{ logs: AuditLog[] }> = ({ logs }) => (
   <>
-    <h1>감사 로그</h1>
-    <p>최근 200건. SP 등록·변경과 관리 작업만 기록합니다. 사용자 로그인은 기록하지 않습니다.</p>
-    <div class="table-wrap">
-      <table>
+    <h1 class="idp-page-title">감사 로그</h1>
+    <p class="idp-lead">최근 200건. SP 등록·변경과 관리 작업만 기록합니다. 사용자 로그인은 기록하지 않습니다.</p>
+    <div class="idp-table-wrap">
+      <table class="cds--data-table cds--data-table--lg">
         <thead>
           <tr>
             <th>시각</th>

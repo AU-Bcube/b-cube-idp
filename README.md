@@ -82,6 +82,10 @@ pnpm test
 pnpm typecheck
 ```
 
+화면은 IBM Carbon(`@carbon/styles`)을 쓰는 서버 렌더링이다. 스크립트는 없고, 다크 모드는 `prefers-color-scheme`을 따른다.
+스타일 원본은 [src/styles/app.scss](src/styles/app.scss)이고, `pnpm build:css`가 `public/assets/app.css`로 컴파일한다. 이 파일은 커밋하지 않는다.
+`pnpm dev`와 `pnpm run deploy`는 먼저 CSS를 빌드한다. `wrangler`를 직접 실행하려면 `pnpm build:css`를 먼저 실행한다.
+
 `DEV_FAKE_LOGIN=true`이면 Google 대신 이메일 입력 화면이 나오고 가짜 학생 정보를 쓴다. `ISSUER`가 localhost일 때만 켤 수 있다.
 이때 `admin@ajou.ac.kr`이 관리자로 자동 추가되므로 http://localhost:8787/admin 에 바로 들어갈 수 있다.
 
@@ -105,7 +109,8 @@ src/
   routes/login.tsx Google 콜백, 동의 화면, 개발용 로그인
   routes/register.ts  RFC 7591/7592
   routes/admin.tsx 관리 화면
-  views.tsx, admin-views.tsx  화면
+  views.tsx, admin-views.tsx  화면 (Carbon 클래스)
+  styles/app.scss  Carbon 스타일과 간격 조정
 migrations/        D1 스키마
 scripts/           키, client_secret 생성
 ```

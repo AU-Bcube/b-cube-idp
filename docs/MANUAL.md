@@ -166,6 +166,6 @@ subdomain-lending 쪽(별도 저장소에서 작업한다):
 - 동의 기록을 저장하지 않으므로 로그인할 때마다 동의 화면이 나온다.
 - 로그아웃 엔드포인트가 없다. IdP는 자체 세션을 만들지 않으므로 SP 세션만 끊으면 된다. 다만 Google 세션은 남는다.
 - mhaksa 조회는 요청 사이에 `MHAKSA_INTERVAL_MS`(기본 3000ms)를 기다린다. `student` scope는 약 3초, `sohakoe`까지 요청하면 약 6초가 로그인에 더해진다.
-- 관리 화면은 화면 구조와 동작을 테스트로만 확인했다. 실제 브라우저로 디자인을 확인하지 않았다.
+- 화면은 IBM Plex Sans KR과 D2Coding을 jsDelivr에서 받는다. jsDelivr에 접근할 수 없으면 시스템 글꼴로 표시된다. 동작에는 영향이 없다.
 - 동적 SP의 client_secret은 만료되지 않는다(`client_secret_expires_at: 0`).
 - 동시에 두 탭에서 로그인하면 흐름 쿠키가 하나라 먼저 시작한 쪽이 "로그인 요청이 만료" 오류를 낸다.

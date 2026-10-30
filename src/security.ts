@@ -1,9 +1,9 @@
 import type { MiddlewareHandler } from "hono";
 
-/** 기본 CSP. 화면에는 인라인 스타일만 있고 스크립트는 없다. */
+/** 기본 CSP. 스타일은 /assets/app.css, 글꼴은 jsDelivr에서 온다. 인라인 스타일과 스크립트는 없다. */
 export function csp(formAction = "'self'"): string {
   return (
-    "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; " +
+    "default-src 'none'; style-src 'self' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; img-src 'self' data:; " +
     `form-action ${formAction}; frame-ancestors 'none'; base-uri 'none'`
   );
 }
@@ -13,7 +13,8 @@ export function applySecurityHeaders(headers: Headers): void {
   if (!headers.has("Content-Security-Policy")) headers.set("Content-Security-Policy", csp());
   if (!headers.has("Cache-Control")) headers.set("Cache-Control", "no-store");
   headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Referrer-Policy", "no-referrer");
+  // no-referrer는 안 된다. 브라우저가 같은 출처 폼 POST에도 `Origin: null`을 보내 sameOrigin 검사가 실패한다.
+  headers.set("Referrer-Policy", "same-origin");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Strict-Transport-Security", "max-age=31536000");
 }
