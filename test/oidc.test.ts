@@ -229,6 +229,16 @@ describe("로그인과 동의", () => {
 });
 
 describe("화면", () => {
+  it("Carbon 스타일 파일을 쓰고 인라인 스타일과 스크립트를 허용하지 않는다", async () => {
+    const res = await SELF.fetch(`${ISSUER}/nope`);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toContain('href="/assets/app.css"');
+    const policy = res.headers.get("Content-Security-Policy")!;
+    expect(policy).toContain("style-src 'self' https://cdn.jsdelivr.net");
+    expect(policy).toContain("default-src 'none'");
+    expect(policy).not.toContain("unsafe-inline");
+  });
+
   it("같은 출처 폼 POST에 Origin이 실리도록 Referrer-Policy는 same-origin이다", async () => {
     // no-referrer면 브라우저가 Origin: null을 보내 동의와 관리 화면의 모든 POST가 403이 된다.
     const res = await SELF.fetch(`${ISSUER}/nope`);

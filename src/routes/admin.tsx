@@ -46,7 +46,7 @@ type AdminContext = Context<HonoEnv>;
 function page(c: AdminContext, title: string, body: Child, status: 200 | 400 | 404 = 200) {
   const { email, csrf } = c.var.admin;
   return c.html(
-    <AdminLayout title={title} email={email} csrf={csrf}>
+    <AdminLayout title={title} email={email} csrf={csrf} path={c.req.path}>
       {body}
     </AdminLayout>,
     status,
@@ -164,8 +164,8 @@ export const adminRoutes = new Hono<HonoEnv>()
       c,
       "SP 추가",
       <>
-        <h1>SP 추가</h1>
-        <p>관리자가 만든 SP는 바로 활성 상태이며 검토한 것으로 표시됩니다.</p>
+        <h1 class="idp-page-title">SP 추가</h1>
+        <p class="idp-lead">관리자가 만든 SP는 바로 활성 상태이며 검토한 것으로 표시됩니다.</p>
         <ClientForm action="/admin/clients" csrf={c.var.admin.csrf} values={EMPTY_FORM} submit="만들기" />
       </>,
     ),
@@ -181,7 +181,7 @@ export const adminRoutes = new Hono<HonoEnv>()
         c,
         "SP 추가",
         <>
-          <h1>SP 추가</h1>
+          <h1 class="idp-page-title">SP 추가</h1>
           <ClientForm
             action="/admin/clients"
             csrf={c.var.admin.csrf}
@@ -219,7 +219,7 @@ export const adminRoutes = new Hono<HonoEnv>()
   })
   .get("/clients/:clientId", async (c) => {
     const client = await findClient(c.var.config, c.env.DB, c.req.param("clientId"));
-    if (!client) return page(c, "없음", <h1>SP를 찾을 수 없습니다</h1>, 404);
+    if (!client) return page(c, "없음", <h1 class="idp-page-title">SP를 찾을 수 없습니다</h1>, 404);
     const form =
       client.source === "dynamic" ? (
         <ClientForm
@@ -233,7 +233,7 @@ export const adminRoutes = new Hono<HonoEnv>()
   })
   .post("/clients/:clientId", async (c) => {
     const client = await loadDynamic(c);
-    if (!client) return page(c, "없음", <h1>SP를 찾을 수 없습니다</h1>, 404);
+    if (!client) return page(c, "없음", <h1 class="idp-page-title">SP를 찾을 수 없습니다</h1>, 404);
     const form = c.var.form;
     let meta;
     try {
@@ -262,7 +262,7 @@ export const adminRoutes = new Hono<HonoEnv>()
   })
   .post("/clients/:clientId/approve", async (c) => {
     const client = await loadDynamic(c);
-    if (!client) return page(c, "없음", <h1>SP를 찾을 수 없습니다</h1>, 404);
+    if (!client) return page(c, "없음", <h1 class="idp-page-title">SP를 찾을 수 없습니다</h1>, 404);
     // 중지된 SP는 승인으로 되살리지 않는다. 재개를 따로 누른다.
     const status = client.status === "suspended" ? "suspended" : "active";
     await setClientStatus(c.env.DB, client.clientId, status, c.var.admin.email);
@@ -276,14 +276,14 @@ export const adminRoutes = new Hono<HonoEnv>()
   })
   .post("/clients/:clientId/suspend", async (c) => {
     const client = await loadDynamic(c);
-    if (!client) return page(c, "없음", <h1>SP를 찾을 수 없습니다</h1>, 404);
+    if (!client) return page(c, "없음", <h1 class="idp-page-title">SP를 찾을 수 없습니다</h1>, 404);
     await setClientStatus(c.env.DB, client.clientId, "suspended");
     await writeAudit(c.env.DB, { actor: actor(c), action: "client.suspend", target: client.clientId });
     return c.redirect(detailPath(client.clientId), 302);
   })
   .post("/clients/:clientId/resume", async (c) => {
     const client = await loadDynamic(c);
-    if (!client) return page(c, "없음", <h1>SP를 찾을 수 없습니다</h1>, 404);
+    if (!client) return page(c, "없음", <h1 class="idp-page-title">SP를 찾을 수 없습니다</h1>, 404);
     // 검토하지 않은 SP가 민감한 scope를 갖고 있으면 승인 대기로 돌아간다.
     const needsReview = !client.reviewed && [...client.scopes].some((s) => SENSITIVE_SCOPES.has(s));
     await setClientStatus(c.env.DB, client.clientId, needsReview ? "pending" : "active");
@@ -292,7 +292,7 @@ export const adminRoutes = new Hono<HonoEnv>()
   })
   .post("/clients/:clientId/rotate-secret", async (c) => {
     const client = await loadDynamic(c);
-    if (!client) return page(c, "없음", <h1>SP를 찾을 수 없습니다</h1>, 404);
+    if (!client) return page(c, "없음", <h1 class="idp-page-title">SP를 찾을 수 없습니다</h1>, 404);
     const secret = await rotateClientSecret(c.env.DB, client.clientId);
     await writeAudit(c.env.DB, { actor: actor(c), action: "client.rotate_secret", target: client.clientId });
     return page(
@@ -311,7 +311,7 @@ export const adminRoutes = new Hono<HonoEnv>()
   })
   .post("/clients/:clientId/delete", async (c) => {
     const client = await loadDynamic(c);
-    if (!client) return page(c, "없음", <h1>SP를 찾을 수 없습니다</h1>, 404);
+    if (!client) return page(c, "없음", <h1 class="idp-page-title">SP를 찾을 수 없습니다</h1>, 404);
     await deleteClient(c.env.DB, client.clientId);
     await writeAudit(c.env.DB, {
       actor: actor(c),

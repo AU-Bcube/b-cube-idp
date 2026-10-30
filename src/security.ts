@@ -1,9 +1,9 @@
 import type { MiddlewareHandler } from "hono";
 
-/** 기본 CSP. 스타일은 /assets/app.css, 글꼴은 jsDelivr에서 온다. 관리 화면은 아직 인라인 스타일을 쓴다. 스크립트는 없다. */
+/** 기본 CSP. 스타일은 /assets/app.css, 글꼴은 jsDelivr에서 온다. 인라인 스타일과 스크립트는 없다. */
 export function csp(formAction = "'self'"): string {
   return (
-    "default-src 'none'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; img-src 'self' data:; " +
+    "default-src 'none'; style-src 'self' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; img-src 'self' data:; " +
     `form-action ${formAction}; frame-ancestors 'none'; base-uri 'none'`
   );
 }
