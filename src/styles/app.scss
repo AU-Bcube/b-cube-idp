@@ -1,0 +1,468 @@
+// IBM Carbon 스타일. `pnpm build:css`가 public/assets/app.css로 컴파일한다.
+// IBM Plex Sans KR과 D2Coding은 화면의 <link>로 jsDelivr에서 불러오므로 Carbon 기본 font-face는 끈다.
+@use 'sass:map';
+@use 'sass:meta';
+@use '@carbon/styles/scss/config' with (
+  $css--font-face: false,
+  $css--reset: true
+);
+@use '@carbon/styles/scss/reset';
+@use '@carbon/styles/scss/themes';
+@use '@carbon/styles/scss/theme';
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type';
+@use '@carbon/styles/scss/layer';
+@use '@carbon/styles/scss/layout';
+@use '@carbon/styles/scss/layer/layer-tokens';
+@use '@carbon/styles/scss/utilities/custom-property';
+@use '@carbon/styles/scss/components/button/tokens' as button-tokens;
+@use '@carbon/styles/scss/components/notification/tokens' as notification-tokens;
+@use '@carbon/styles/scss/components/tag/tokens' as tag-tokens;
+@use '@carbon/styles/scss/components/button';
+@use '@carbon/styles/scss/components/checkbox';
+@use '@carbon/styles/scss/components/data-table';
+@use '@carbon/styles/scss/components/form';
+@use '@carbon/styles/scss/components/link';
+@use '@carbon/styles/scss/components/notification';
+@use '@carbon/styles/scss/components/select';
+@use '@carbon/styles/scss/components/tag';
+@use '@carbon/styles/scss/components/text-area';
+@use '@carbon/styles/scss/components/text-input';
+@use '@carbon/styles/scss/components/ui-shell';
+
+$font-sans: 'IBM Plex Sans KR', 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+$font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, monospace;
+// Carbon 기본 줄간격(1.43)은 한글 본문에 좁다.
+$line-height-body: 1.75;
+
+// @carbon/styles의 _zone.scss와 같은 토큰을 선택자 없이 내보낸다. 스크립트 없이 prefers-color-scheme으로 테마를 고른다.
+@mixin theme-tokens($theme) {
+  @each $key, $value in $theme {
+    @if $key == 'color-scheme' {
+      @include custom-property.declaration($key, $value);
+      color-scheme: $value;
+    } @else if meta.type-of($value) == color {
+      @include custom-property.declaration($key, $value);
+    }
+  }
+  @include layer-tokens.emit-layer-tokens(1);
+  @each $group in (button-tokens.$button-tokens, notification-tokens.$notification-tokens, tag-tokens.$tag-tokens) {
+    @each $key, $value in $group {
+      @if meta.type-of($value) == map {
+        @each $theme-value in map.get($value, values) {
+          $token: map.get($theme-value, value);
+          @if theme.matches(map.get($theme-value, theme), $theme) and meta.type-of($token) == color {
+            @include custom-property.declaration($key, $token);
+          }
+        }
+      } @else if meta.type-of($value) == color {
+        @include custom-property.declaration($key, $value);
+      }
+    }
+  }
+}
+
+:root {
+  @include theme-tokens(themes.$g10);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    @include theme-tokens(themes.$g100);
+  }
+}
+
+html,
+body {
+  margin: 0;
+  font-family: $font-sans;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+  line-height: $line-height-body;
+}
+
+button,
+input,
+textarea,
+select,
+.cds--btn,
+.cds--label,
+.cds--text-input,
+.cds--text-area,
+.cds--select-input,
+.cds--checkbox-label-text,
+.cds--tag,
+.cds--inline-notification,
+.cds--inline-notification__title,
+.cds--inline-notification__subtitle,
+.cds--data-table,
+.cds--header__name,
+.cds--header__menu-item {
+  font-family: $font-sans;
+}
+
+code,
+.mono {
+  font-family: $font-mono;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+h1,
+h2,
+p,
+dl,
+dd,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ul {
+  list-style: none;
+}
+
+// ---------------------------------------------------------------------------
+// 동의, 오류, 개발용 로그인: 가운데 카드 하나
+// ---------------------------------------------------------------------------
+.idp-center {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-09 $spacing-05;
+}
+
+.idp-card {
+  width: 100%;
+  max-width: 32rem;
+  padding: $spacing-08;
+  background: var(--cds-layer-01);
+
+  @media (max-width: 42rem) {
+    padding: $spacing-07 $spacing-06;
+  }
+}
+
+.idp-brand {
+  @include type.type-style('label-01');
+  margin-bottom: $spacing-07;
+  color: var(--cds-text-secondary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.idp-title {
+  @include type.type-style('heading-04');
+  margin-bottom: $spacing-05;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.idp-title--error {
+  color: var(--cds-text-error);
+}
+
+.idp-body {
+  margin-bottom: $spacing-06;
+  color: var(--cds-text-secondary);
+  font-size: 1rem;
+  line-height: $line-height-body;
+}
+
+.idp-account {
+  margin-bottom: $spacing-07;
+  padding: $spacing-05;
+  background: var(--cds-layer-02);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.idp-scopes {
+  margin-bottom: $spacing-07;
+  border-top: 1px solid var(--cds-border-subtle-01);
+
+  > li {
+    padding: $spacing-06 0;
+    border-bottom: 1px solid var(--cds-border-subtle-01);
+  }
+}
+
+.idp-scope-label {
+  margin-bottom: $spacing-03;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.idp-value {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.idp-pairs {
+  display: grid;
+  gap: $spacing-03 $spacing-06;
+  grid-template-columns: max-content 1fr;
+  font-size: 0.875rem;
+  line-height: 1.7;
+
+  dt {
+    color: var(--cds-text-secondary);
+  }
+
+  dd {
+    overflow-wrap: anywhere;
+  }
+}
+
+.idp-note {
+  margin-top: $spacing-06;
+  color: var(--cds-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.idp-redirect {
+  margin-bottom: $spacing-06;
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+// Carbon 버튼은 카드 아래에 꽉 차게 나란히 둔다.
+.idp-actions {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: 1fr 1fr;
+
+  .cds--btn {
+    width: 100%;
+    max-width: none;
+    padding-inline-end: $spacing-05;
+    white-space: nowrap;
+  }
+}
+
+.idp-notification {
+  max-width: none;
+  margin-bottom: $spacing-06;
+}
+
+.idp-field {
+  margin-bottom: $spacing-06;
+}
+
+.cds--inline-notification__subtitle {
+  line-height: 1.6;
+}
+
+// ---------------------------------------------------------------------------
+// 관리 화면
+// ---------------------------------------------------------------------------
+.idp-admin-content {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: calc(3rem + #{$spacing-09}) $spacing-06 $spacing-11;
+
+  @media (max-width: 42rem) {
+    padding: calc(3rem + #{$spacing-07}) $spacing-05 $spacing-09;
+  }
+}
+
+// Carbon 헤더 메뉴는 좁은 화면에서 사이드 내비게이션을 전제로 사라진다. 스크립트가 없으므로 가로 스크롤로 유지한다.
+.cds--header__name,
+.cds--header__menu-item {
+  white-space: nowrap;
+}
+
+.cds--header__nav {
+  display: block;
+  overflow-x: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+
+  &::before {
+    display: none;
+  }
+}
+
+.idp-header-user {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+  margin-left: auto;
+  padding: 0 $spacing-05;
+  color: var(--cds-text-secondary);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+
+  @media (max-width: 66rem) {
+    .idp-header-email {
+      display: none;
+    }
+  }
+}
+
+.idp-page-title {
+  @include type.type-style('heading-04');
+  margin-bottom: $spacing-06;
+  font-weight: 400;
+  line-height: 1.45;
+
+  .cds--tag {
+    margin-left: $spacing-03;
+    vertical-align: middle;
+  }
+}
+
+.idp-section-title {
+  @include type.type-style('heading-03');
+  margin: $spacing-09 0 $spacing-05;
+  line-height: 1.5;
+}
+
+.idp-lead {
+  max-width: 48rem;
+  margin-bottom: $spacing-07;
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  line-height: $line-height-body;
+}
+
+.idp-panel {
+  margin-bottom: $spacing-07;
+  padding: $spacing-07;
+  background: var(--cds-layer-01);
+
+  @media (max-width: 42rem) {
+    padding: $spacing-06 $spacing-05;
+  }
+}
+
+.idp-details {
+  display: grid;
+  gap: $spacing-04 $spacing-07;
+  grid-template-columns: max-content minmax(0, 1fr);
+  font-size: 0.875rem;
+  line-height: 1.7;
+
+  dt {
+    color: var(--cds-text-secondary);
+  }
+
+  dd {
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 42rem) {
+    gap: $spacing-02 0;
+    grid-template-columns: minmax(0, 1fr);
+
+    dd {
+      margin-bottom: $spacing-04;
+    }
+  }
+}
+
+.idp-form-row {
+  margin-bottom: $spacing-07;
+}
+
+.idp-form-title {
+  margin-bottom: $spacing-03;
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.cds--label {
+  margin-bottom: $spacing-03;
+  line-height: 1.6;
+}
+
+.cds--form__helper-text {
+  margin-top: $spacing-03;
+  line-height: 1.6;
+}
+
+.cds--text-area__wrapper,
+.cds--text-area {
+  width: 100%;
+}
+
+.cds--text-area {
+  min-height: 6rem;
+  padding: $spacing-04 $spacing-05;
+  line-height: 1.6;
+}
+
+.idp-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03 $spacing-07;
+}
+
+.idp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  margin-top: $spacing-07;
+}
+
+.idp-table-wrap {
+  overflow-x: auto;
+  background: var(--cds-layer-01);
+}
+
+.cds--data-table {
+  // 좁은 화면에서 글자가 세로로 쪼개지지 않게 표를 가로로 스크롤한다.
+  min-width: 60rem;
+
+  th,
+  td {
+    height: auto;
+    padding: $spacing-05;
+    line-height: 1.6;
+    vertical-align: top;
+  }
+
+  th,
+  td a {
+    white-space: nowrap;
+  }
+}
+
+.idp-muted {
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.idp-sensitive {
+  color: var(--cds-support-warning-text, var(--cds-text-error));
+  font-weight: 600;
+}
+
+.idp-uri + .idp-uri {
+  margin-top: $spacing-02;
+}
+
+.secret {
+  margin: $spacing-02 0 $spacing-06;
+  padding: $spacing-04 $spacing-05;
+  background: var(--cds-layer-02);
+  line-height: 1.6;
+  user-select: all;
+}
+
+.idp-link-row {
+  margin-top: $spacing-05;
+}

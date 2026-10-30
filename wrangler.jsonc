@@ -6,6 +6,10 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	// public/assets/app.css는 `pnpm build:css`가 만든다. 파일이 없는 경로만 Worker로 간다.
+	"assets": {
+		"directory": "./public"
+	},
 	"routes": [
 		{
 			"pattern": "id.b-cube.kr",

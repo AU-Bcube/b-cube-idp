@@ -3,15 +3,16 @@
   "version": "1.0.0",
   "description": "B-CUBE OpenID Connect IdP",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "pnpm build:css && wrangler dev",
+    "deploy": "pnpm build:css && wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types src/worker-configuration.d.ts",
     "db:migrate:local": "wrangler d1 migrations apply b-cube-idp --local",
     "db:migrate:remote": "wrangler d1 migrations apply b-cube-idp --remote",
     "keys": "node scripts/keys.mjs",
-    "client:secret": "node scripts/client-secret.mjs"
+    "client:secret": "node scripts/client-secret.mjs",
+    "build:css": "node scripts/build-css.mjs"
   },
   "keywords": [],
   "author": "",
@@ -31,7 +32,9 @@
     "jose": "^6.2.13"
   },
   "devDependencies": {
+    "@carbon/styles": "^1.118.0",
     "@cloudflare/vitest-plugin": "^1.4.9",
+    "sass": "^1.107.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
     "wrangler": "^4.154.0"
