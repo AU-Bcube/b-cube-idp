@@ -13,7 +13,8 @@ export function applySecurityHeaders(headers: Headers): void {
   if (!headers.has("Content-Security-Policy")) headers.set("Content-Security-Policy", csp());
   if (!headers.has("Cache-Control")) headers.set("Cache-Control", "no-store");
   headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Referrer-Policy", "no-referrer");
+  // no-referrer는 안 된다. 브라우저가 같은 출처 폼 POST에도 `Origin: null`을 보내 sameOrigin 검사가 실패한다.
+  headers.set("Referrer-Policy", "same-origin");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Strict-Transport-Security", "max-age=31536000");
 }

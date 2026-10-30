@@ -228,6 +228,14 @@ describe("로그인과 동의", () => {
   });
 });
 
+describe("화면", () => {
+  it("같은 출처 폼 POST에 Origin이 실리도록 Referrer-Policy는 same-origin이다", async () => {
+    // no-referrer면 브라우저가 Origin: null을 보내 동의와 관리 화면의 모든 POST가 403이 된다.
+    const res = await SELF.fetch(`${ISSUER}/nope`);
+    expect(res.headers.get("Referrer-Policy")).toBe("same-origin");
+  });
+});
+
 describe("로그인 거절", () => {
   it.each([
     ["다른 도메인", "someone@gmail.com", {}],
