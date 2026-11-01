@@ -70,7 +70,7 @@ export async function loadFlow(c: Context<HonoEnv>, id: string | null): Promise<
     "flow",
     getCookie(c, flowCookiePrefix(config) + id),
   );
-  return payload?.req || payload?.admin ? payload : null;
+  return payload?.req || payload?.admin || payload?.account ? payload : null;
 }
 
 export function clearFlow(c: Context<HonoEnv>, id: string): void {

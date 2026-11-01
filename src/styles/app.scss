@@ -264,6 +264,42 @@ ul {
   line-height: 1.6;
 }
 
+.idp-note a {
+  color: var(--cds-link-primary);
+}
+
+// 내 동의 관리: 동의한 SP마다 한 덩어리
+.idp-sp {
+  padding-top: $spacing-07;
+  border-top: 1px solid var(--cds-border-strong-01);
+
+  & + & {
+    margin-top: $spacing-08;
+  }
+
+  .idp-scopes {
+    margin-bottom: $spacing-06;
+  }
+}
+
+.idp-sp-name {
+  @include type.type-style('heading-03');
+  margin-bottom: $spacing-05;
+  overflow-wrap: anywhere;
+}
+
+.idp-sp-meta {
+  margin-bottom: $spacing-06;
+}
+
+.idp-muted-value {
+  color: var(--cds-text-secondary);
+}
+
+.idp-sp-logout {
+  margin-top: $spacing-08;
+}
+
 // ---------------------------------------------------------------------------
 // 관리 화면
 // ---------------------------------------------------------------------------

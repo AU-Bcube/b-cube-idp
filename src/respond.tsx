@@ -12,7 +12,7 @@ export function errorPage(c: Context<HonoEnv>, status: ContentfulStatusCode, tit
 }
 
 /** 흐름 쿠키를 만들고 Google 로그인(개발 모드에서는 가짜 로그인 화면)으로 보낸다. */
-export async function startGoogleLogin(c: Context<HonoEnv>, flow: Pick<FlowPayload, "req" | "admin">) {
+export async function startGoogleLogin(c: Context<HonoEnv>, flow: Pick<FlowPayload, "req" | "admin" | "account">) {
   const config = c.var.config;
   const id = newFlowId();
   const google = { state: `${id}.${randomToken(32)}`, nonce: randomToken(32), verifier: randomToken(32) };

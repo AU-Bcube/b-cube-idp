@@ -1,3 +1,4 @@
+import type { AccountSession } from "./account-session";
 import type { AdminSession } from "./admin-session";
 import type { Collections } from "./db";
 import type { Config } from "./env";
@@ -12,7 +13,9 @@ export interface HonoEnv {
     config: Config;
     /** /admin/* 에서만 설정된다. */
     admin: AdminSession;
-    /** /admin/* POST에서 CSRF 검사를 마친 폼 본문 */
+    /** /consents/* 에서만 설정된다. */
+    account: AccountSession;
+    /** /admin/*, /consents/* POST에서 CSRF 검사를 마친 폼 본문 */
     form: Record<string, unknown>;
   };
 }
@@ -39,12 +42,13 @@ export interface AuthenticatedUser {
 }
 
 /**
- * 흐름 쿠키 내용. SP 로그인이면 req, 관리 화면 로그인이면 admin이 있다.
+ * 흐름 쿠키 내용. SP 로그인이면 req, 관리 화면 로그인이면 admin, 동의 관리 화면 로그인이면 account가 있다.
  * Google 로그인 단계에는 google, 동의 단계에는 user와 csrf가 있다.
  */
 export interface FlowPayload {
   req?: AuthRequest;
   admin?: true;
+  account?: true;
   google?: { state: string; nonce: string; verifier: string };
   user?: AuthenticatedUser;
   csrf?: string;

@@ -289,6 +289,19 @@ export async function adminLogin(browser: Browser, email = ADMIN_EMAIL): Promise
   return { res, csrf: csrfFrom(await home.text()) };
 }
 
+/** Google 로그인을 거쳐 내 동의 관리 화면을 연다. 화면과 CSRF 토큰을 돌려준다. */
+export async function accountLogin(browser: Browser, email: string): Promise<{ html: string; csrf: string }> {
+  const start = await browser.fetch("/consents/login");
+  const googleUrl = new URL(start.headers.get("Location")!);
+  google.claims = googleUser(email);
+  const res = await browser.fetch(
+    `/callback/google?state=${googleUrl.searchParams.get("state")}&code=${googleUrl.searchParams.get("nonce")}`,
+  );
+  if (res.headers.get("Location") !== "/consents") throw new Error(`동의 관리 화면으로 가지 않음: ${res.status}`);
+  const html = await (await browser.fetch("/consents")).text();
+  return { html, csrf: csrfFrom(html) };
+}
+
 export function register(token: string | null, body: unknown) {
   return appFetch(`${ISSUER}/register`, {
     method: "POST",

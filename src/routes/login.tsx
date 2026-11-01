@@ -1,9 +1,10 @@
 /**
  * 사용자 쪽 화면: Google 콜백, 동의 화면, 개발용 가짜 로그인.
- * 같은 Google 콜백을 SP 로그인과 관리 화면 로그인이 함께 쓴다. 흐름 쿠키의 admin 여부로 나눈다.
+ * 같은 Google 콜백을 SP 로그인, 관리 화면 로그인, 동의 관리 화면 로그인이 함께 쓴다. 흐름 쿠키의 admin, account 여부로 나눈다.
  * 흐름 쿠키는 흐름 id별로 따로 있다. 콜백은 Google state에서, 동의 화면은 flow 파라미터에서 id를 얻는다.
  */
 import { Hono, type Context } from "hono";
+import { createAccountSession } from "../account-session";
 import { createAdminSession } from "../admin-session";
 import { findClient } from "../clients";
 import { CONSENT_TTL_MS, consentCovers, deleteConsent, findConsent, saveConsent } from "../consents";
@@ -49,6 +50,11 @@ async function completeAuthentication(c: Context<HonoEnv>, flowId: string, flow:
     }
     await createAdminSession(c, identity.email);
     return c.redirect("/admin", 302);
+  }
+  if (flow.account) {
+    clearFlow(c, flowId);
+    await createAccountSession(c, identity);
+    return c.redirect("/consents", 302);
   }
 
   const req = flow.req!;
