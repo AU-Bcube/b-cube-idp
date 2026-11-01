@@ -140,7 +140,7 @@ ul {
 .idp-card {
   width: 100%;
   max-width: 32rem;
-  padding: $spacing-08;
+  padding: $spacing-07;
   background: var(--cds-layer-01);
 
   @media (max-width: 42rem) {
@@ -150,7 +150,7 @@ ul {
 
 .idp-brand {
   @include type.type-style('label-01');
-  margin-bottom: $spacing-07;
+  margin-bottom: $spacing-06;
   color: var(--cds-text-secondary);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -175,7 +175,7 @@ ul {
 }
 
 .idp-account {
-  margin-bottom: $spacing-07;
+  margin-bottom: $spacing-06;
   padding: $spacing-05;
   background: var(--cds-layer-02);
   font-size: 0.875rem;
@@ -184,11 +184,11 @@ ul {
 }
 
 .idp-scopes {
-  margin-bottom: $spacing-07;
+  margin-bottom: $spacing-06;
   border-top: 1px solid var(--cds-border-subtle-01);
 
   > li {
-    padding: $spacing-06 0;
+    padding: $spacing-05 0;
     border-bottom: 1px solid var(--cds-border-subtle-01);
   }
 }
@@ -223,7 +223,7 @@ ul {
 }
 
 .idp-note {
-  margin-top: $spacing-06;
+  margin-top: $spacing-05;
   color: var(--cds-text-secondary);
   font-size: 0.8125rem;
   line-height: 1.7;
@@ -270,10 +270,10 @@ ul {
 .idp-admin-content {
   max-width: 76rem;
   margin: 0 auto;
-  padding: calc(3rem + #{$spacing-09}) $spacing-06 $spacing-11;
+  padding: calc(3rem + #{$spacing-07}) $spacing-06 $spacing-10;
 
   @media (max-width: 42rem) {
-    padding: calc(3rem + #{$spacing-07}) $spacing-05 $spacing-09;
+    padding: calc(3rem + #{$spacing-06}) $spacing-05 $spacing-08;
   }
 }
 
@@ -313,7 +313,7 @@ ul {
 
 .idp-page-title {
   @include type.type-style('heading-04');
-  margin-bottom: $spacing-06;
+  margin-bottom: $spacing-05;
   font-weight: 400;
   line-height: 1.45;
 
@@ -325,31 +325,40 @@ ul {
 
 .idp-section-title {
   @include type.type-style('heading-03');
-  margin: $spacing-09 0 $spacing-05;
+  margin: $spacing-08 0 $spacing-05;
   line-height: 1.5;
 }
 
 .idp-lead {
   max-width: 48rem;
-  margin-bottom: $spacing-07;
+  margin-bottom: $spacing-06;
   color: var(--cds-text-secondary);
   font-size: 0.875rem;
   line-height: $line-height-body;
 }
 
 .idp-panel {
-  margin-bottom: $spacing-07;
-  padding: $spacing-07;
+  margin-bottom: $spacing-06;
+  padding: $spacing-06;
   background: var(--cds-layer-01);
 
   @media (max-width: 42rem) {
-    padding: $spacing-06 $spacing-05;
+    padding: $spacing-05;
+  }
+
+  // 마지막 요소의 아래 여백이 패널 안쪽 여백에 더해지지 않게 한다.
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  > .idp-lead {
+    margin-bottom: $spacing-05;
   }
 }
 
 .idp-details {
   display: grid;
-  gap: $spacing-04 $spacing-07;
+  gap: $spacing-03 $spacing-06;
   grid-template-columns: max-content minmax(0, 1fr);
   font-size: 0.875rem;
   line-height: 1.7;
@@ -373,7 +382,7 @@ ul {
 }
 
 .idp-form-row {
-  margin-bottom: $spacing-07;
+  margin-bottom: $spacing-06;
 }
 
 .idp-form-title {
@@ -407,14 +416,14 @@ ul {
 .idp-checks {
   display: flex;
   flex-wrap: wrap;
-  gap: $spacing-03 $spacing-07;
+  gap: $spacing-03 $spacing-06;
 }
 
 .idp-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-03;
-  margin-top: $spacing-07;
+  margin-top: $spacing-06;
 }
 
 .idp-table-wrap {
@@ -429,7 +438,7 @@ ul {
   th,
   td {
     height: auto;
-    padding: $spacing-05;
+    padding: $spacing-04 $spacing-05;
     line-height: 1.6;
     vertical-align: top;
   }
@@ -456,13 +465,9 @@ ul {
 }
 
 .secret {
-  margin: $spacing-02 0 $spacing-06;
+  margin: $spacing-02 0 $spacing-05;
   padding: $spacing-04 $spacing-05;
   background: var(--cds-layer-02);
   line-height: 1.6;
   user-select: all;
-}
-
-.idp-link-row {
-  margin-top: $spacing-05;
 }
