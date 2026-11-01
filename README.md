@@ -1,3 +1,5 @@
+[![Netlify Status](https://api.netlify.com/api/v1/badges/ec7d438c-aa8f-4435-bcfe-08d0e3eec963/deploy-status)](https://app.netlify.com/projects/b-cube-idp/deploys)
+
 # B-CUBE-IDP
 
 <img src="assets/b-cube-idp-ko-logo.png" height="84" style="margin-right: 32;">

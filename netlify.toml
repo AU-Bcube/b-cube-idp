@@ -6,6 +6,9 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # pnpm-lock.yaml을 만든 pnpm과 같은 버전을 쓴다. Netlify 기본 pnpm(10.x)은 이 lockfile 형식(YAML 문서 2개)과
+  # pnpm-workspace.yaml의 git 의존성 allowBuilds 키를 읽지 못해 설치 단계에서 실패한다.
+  PNPM_VERSION = "12.16.1"
 
 [functions]
   node_bundler = "esbuild"
