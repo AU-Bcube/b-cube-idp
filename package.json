@@ -16,9 +16,12 @@
   "type": "module",
   "dependencies": {
     "ajou-internal-id-federation": "github:AU-Bcube/ajou-internal-id-federation#a36347227d7960a7b602c80bb6e197f0088a238c",
+    "axios": "^1.21.0",
     "hono": "^4.13.14",
+    "https-proxy-agent": "^9.1.0",
     "jose": "^6.2.13",
-    "mongodb": "^7.8.0"
+    "mongodb": "^7.8.0",
+    "socks-proxy-agent": "^10.1.0"
   },
   "devDependencies": {
     "@carbon/styles": "^1.118.0",

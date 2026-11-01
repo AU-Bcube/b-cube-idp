@@ -5,6 +5,9 @@
  * 여기서 허용 목록에 있는 열만 골라내고, 나머지는 어디에도 남기지 않는다.
  */
 import { Student, type BaseInfo, type SohakoeMembership } from "ajou-internal-id-federation";
+import axios from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { SocksProxyAgent } from "socks-proxy-agent";
 import type { Config } from "./env";
 import type { Scope } from "./scopes";
 
@@ -77,11 +80,31 @@ export function toSohakoeClaim(row: SohakoeMembership): SohakoeClaim {
 
 export type StudentLookup = (config: Config, email: string, scopes: readonly Scope[]) => Promise<MhaksaClaims>;
 
+let appliedProxyUrl = "";
+
+/**
+ * mhaksa 요청에 프록시를 건다. 패키지에 프록시 옵션이 없어, 패키지의 axios.create가 물려받는 기본값에 agent를 넣는다.
+ * package.json의 axios가 패키지와 같은 인스턴스로 풀려야 한다. test/mhaksa-proxy.test.ts가 이를 확인한다.
+ */
+function applyMhaksaProxy(proxyUrl: string): void {
+  if (proxyUrl === appliedProxyUrl) return;
+  appliedProxyUrl = proxyUrl;
+  if (!proxyUrl) {
+    delete axios.defaults.httpsAgent;
+    delete axios.defaults.proxy;
+    return;
+  }
+  axios.defaults.httpsAgent = proxyUrl.startsWith("socks") ? new SocksProxyAgent(proxyUrl) : new HttpsProxyAgent(proxyUrl);
+  // axios가 HTTPS_PROXY 환경 변수의 프록시를 agent 위에 겹쳐 쓰지 않게 한다.
+  axios.defaults.proxy = false;
+}
+
 /**
  * 로그인한 학교 계정의 학생 정보를 조회한다.
  * 이메일 local part를 포털 ID로 쓰고, 조회 결과의 학교 이메일이 로그인 이메일과 같은지 다시 확인한다.
  */
-export const lookupStudent: StudentLookup = async (_config, email, scopes) => {
+export const lookupStudent: StudentLookup = async (config, email, scopes) => {
+  applyMhaksaProxy(config.mhaksaProxyUrl);
   const username = email.slice(0, email.lastIndexOf("@"));
   let student;
   try {
