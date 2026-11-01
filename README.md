@@ -7,7 +7,7 @@ B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Cloudflare Workers�
 - 사용자 정보와 학생 정보는 저장하지 않는다. D1에는 SP 등록 정보, 등록 토큰 해시, 관리 감사 로그, 이미 사용한 인가 코드의 ID만 남는다.
 - SP는 모두 D1에 있고, 관리 화면이나 동적 등록(RFC 7591/7592)으로 만든다.
 
-설치와 배포, SP 연동 절차는 [docs/MANUAL.md](docs/MANUAL.md)에 있다.
+설치, 배포, SP 등록·승인 같은 IdP 운영 절차는 [docs/MANUAL.md](docs/MANUAL.md)에 있다.
 SP 저장소에서 Claude Code로 기존 인증을 이 IdP로 옮길 때는 [docs/SP_MIGRATION_PROMPT.md](docs/SP_MIGRATION_PROMPT.md)를 쓴다.
 
 ## 흐름
