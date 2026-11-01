@@ -1,5 +1,8 @@
 # B-CUBE-IDP
 
+<img src="assets/b-cube-idp-ko-logo.png" height="84" style="margin-right: 32;">
+<img src="assets/b-cube-idp-en-logo.png" height="84">
+
 B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Cloudflare Workers에서 동작한다.
 
 - 사용자 인증은 `@ajou.ac.kr` Google Workspace 계정으로만 한다. 비밀번호를 받거나 저장하지 않는다.
