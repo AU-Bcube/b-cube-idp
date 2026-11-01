@@ -1,5 +1,5 @@
 {
-  "name": "b-cube-idp",
+  "name": "bcube-idp",
   "version": "1.0.0",
   "description": "B-CUBE OpenID Connect IdP",
   "scripts": {

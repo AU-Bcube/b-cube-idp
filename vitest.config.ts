@@ -22,6 +22,7 @@ export default defineConfig(async () => ({
       SIGNING_KEY: await testSigningKey(),
       ENCRYPTION_SECRET: "test-encryption-secret-0123456789abcdefghijkl",
       ADMIN_EMAILS: "t-admin@ajou.ac.kr",
+      SOURCE_URL: "https://source.example.com/idp",
     },
   },
 }));

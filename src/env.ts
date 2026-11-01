@@ -25,6 +25,8 @@ export interface Config {
   /** MongoDB 연결 문자열 */
   dbConnectionString: string;
   dbName: string;
+  /** 소스 코드 공개 주소(AGPL-3.0-or-later). 안내 페이지에 링크한다. 비어 있으면 링크를 숨긴다. */
+  sourceUrl: string;
 }
 
 /** 개발 모드 + DEV_FAKE_LOGIN에서 ADMIN_EMAILS에 자동으로 들어가는 계정 */
@@ -81,6 +83,10 @@ export function parseConfig(raw: RawEnv): Config {
   const dbName = str(raw.DB_NAME);
   if (!dbName) errors.push("DB_NAME이 필요합니다");
 
+  // 저장소 주소는 DB_NAME 값(secret)과 같은 프로젝트 이름을 담고 있어 코드에 적지 않는다.
+  const sourceUrl = str(raw.SOURCE_URL);
+  if (sourceUrl && !/^https:\/\/\S+$/.test(sourceUrl)) errors.push("SOURCE_URL은 https:// 주소여야 합니다");
+
   const adminEmails = new Set(
     str(raw.ADMIN_EMAILS)
       .split(",")
@@ -105,6 +111,7 @@ export function parseConfig(raw: RawEnv): Config {
     adminEmails,
     dbConnectionString,
     dbName,
+    sourceUrl,
   };
 }
 

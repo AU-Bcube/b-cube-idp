@@ -94,7 +94,7 @@ function formValue(form: FormData, name: string): string {
 }
 
 function tokenError(c: Context<HonoEnv>, status: 400 | 401, error: string, description: string) {
-  if (status === 401) c.header("WWW-Authenticate", 'Basic realm="b-cube-idp"');
+  if (status === 401) c.header("WWW-Authenticate", 'Basic realm="B-CUBE IdP"');
   return c.json({ error, error_description: description }, status);
 }
 

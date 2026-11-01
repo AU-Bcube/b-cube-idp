@@ -82,7 +82,7 @@ function sealKey(config: Config, purpose: SealPurpose): Promise<CryptoKey> {
         "deriveKey",
       ]);
       return crypto.subtle.deriveKey(
-        { name: "HKDF", hash: "SHA-256", salt: encoder.encode("b-cube-idp"), info: encoder.encode(purpose) },
+        { name: "HKDF", hash: "SHA-256", salt: encoder.encode("B-CUBE IdP"), info: encoder.encode(purpose) },
         ikm,
         { name: "AES-GCM", length: 256 },
         false,

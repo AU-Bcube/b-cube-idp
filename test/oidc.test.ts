@@ -375,7 +375,14 @@ describe("화면", () => {
     expect(html).toContain("B-CUBE 통합 로그인");
     expect(html).toContain('href="/consents"');
     expect(html).toContain('href="/.well-known/openid-configuration"');
-    expect(html).toContain("https://github.com/AU-Bcube/b-cube-idp");
+    expect(html).toContain('href="https://source.example.com/idp"');
+  });
+
+  it("SOURCE_URL이 없으면 소스 코드 링크를 숨기고, https가 아니면 설정 오류다", async () => {
+    const hidden = await (await appWith({ SOURCE_URL: "" })(new Request(`${ISSUER}/`))).text();
+    expect(hidden).not.toContain("소스 코드");
+    const bad = await appWith({ SOURCE_URL: "http://source.example.com" })(new Request(`${ISSUER}/`));
+    expect(bad.status).toBe(500);
   });
 
   it("모든 사용자 화면의 B-CUBE 통합 로그인은 안내 페이지로 가는 링크다", async () => {

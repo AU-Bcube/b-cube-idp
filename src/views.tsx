@@ -82,11 +82,8 @@ export const ErrorPage: FC<{ title: string; message: string }> = ({ title, messa
   </Layout>
 );
 
-/** 소스 코드 공개 주소(AGPL-3.0-or-later) */
-export const SOURCE_URL = "https://github.com/AU-Bcube/b-cube-idp";
-
 /** 루트(/) 안내 페이지. 주소창에 IdP 주소를 직접 입력한 사용자를 위한 화면이다. */
-export const HomePage: FC<{ emailDomain: string }> = ({ emailDomain }) => (
+export const HomePage: FC<{ emailDomain: string; sourceUrl: string }> = ({ emailDomain, sourceUrl }) => (
   <Layout title="B-CUBE 통합 로그인">
     <h1 class="idp-title">B-CUBE 통합 로그인</h1>
     <p class="idp-body">
@@ -101,8 +98,13 @@ export const HomePage: FC<{ emailDomain: string }> = ({ emailDomain }) => (
     <p class="idp-note">
       비밀번호와 학생 정보는 저장하지 않습니다. 어느 서비스에 어떤 항목을 동의했는지만 1년간 저장합니다.
       <br />
-      서비스 개발자: <a href="/.well-known/openid-configuration">OpenID Connect 설정</a> ·{" "}
-      <a href={SOURCE_URL}>소스 코드 (AGPL-3.0)</a>
+      서비스 개발자: <a href="/.well-known/openid-configuration">OpenID Connect 설정</a>
+      {sourceUrl ? (
+        <>
+          {" "}
+          · <a href={sourceUrl}>소스 코드 (AGPL-3.0)</a>
+        </>
+      ) : null}
     </p>
   </Layout>
 );
