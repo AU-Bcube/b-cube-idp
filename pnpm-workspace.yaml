@@ -7,3 +7,21 @@ allowBuilds:
   netlify-cli: false
   unix-dgram: false
   '@parcel/watcher': false
+  # Carbon과 IBM Plex의 postinstall은 IBM 텔레메트리 전송(ibmtelemetry)뿐이다. 빌드에 필요 없다.
+  '@carbon/colors': false
+  '@carbon/feature-flags': false
+  '@carbon/grid': false
+  '@carbon/layout': false
+  '@carbon/motion': false
+  '@carbon/styles': false
+  '@carbon/themes': false
+  '@carbon/type': false
+  '@ibm/plex': false
+  '@ibm/plex-mono': false
+  '@ibm/plex-sans': false
+  '@ibm/plex-sans-arabic': false
+  '@ibm/plex-sans-devanagari': false
+  '@ibm/plex-sans-hebrew': false
+  '@ibm/plex-sans-thai': false
+  '@ibm/plex-sans-thai-looped': false
+  '@ibm/plex-serif': false
