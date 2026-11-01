@@ -1,11 +1,15 @@
-/** 여러 라우트가 같이 쓰는 응답: 오류 화면, Google 로그인 시작. */
+/** 여러 라우트가 같이 쓰는 응답: 안내 화면, 오류 화면, Google 로그인 시작. */
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { randomToken, sha256Base64url } from "./crypto";
 import { newFlowId, saveFlow } from "./flow";
 import { buildGoogleAuthUrl } from "./google";
 import type { FlowPayload, HonoEnv } from "./types";
-import { DevLoginPage, ErrorPage } from "./views";
+import { DevLoginPage, ErrorPage, HomePage } from "./views";
+
+export function homePage(c: Context<HonoEnv>) {
+  return c.html(<HomePage emailDomain={c.var.config.allowedEmailDomain} />);
+}
 
 export function errorPage(c: Context<HonoEnv>, status: ContentfulStatusCode, title: string, message: string) {
   return c.html(<ErrorPage title={title} message={message} />, status);

@@ -3,7 +3,7 @@ import type { Config } from "./env";
 import { adminRoutes } from "./routes/admin";
 import { consentsRoutes } from "./routes/consents";
 import { devLoginRoutes, loginRoutes } from "./routes/login";
-import { errorPage } from "./respond";
+import { errorPage, homePage } from "./respond";
 import { oidcRoutes } from "./routes/oidc";
 import { registerRoutes } from "./routes/register";
 import { securityHeaders } from "./security";
@@ -22,7 +22,7 @@ export function createApp(config: Config): Hono<HonoEnv> {
     await next();
   });
 
-  app.get("/", (c) => c.redirect("/.well-known/openid-configuration", 302));
+  app.get("/", homePage);
   app.get("/health", async (c) => {
     await c.env.DB.clients.estimatedDocumentCount();
     return c.json({ status: "ok", time: new Date().toISOString() });

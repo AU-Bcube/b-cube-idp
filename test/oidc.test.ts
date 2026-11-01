@@ -368,6 +368,26 @@ describe("여러 탭", () => {
 });
 
 describe("화면", () => {
+  it("루트는 내 동의 관리와 개발자 정보로 안내한다", async () => {
+    const res = await appFetch(`${ISSUER}/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("B-CUBE 통합 로그인");
+    expect(html).toContain('href="/consents"');
+    expect(html).toContain('href="/.well-known/openid-configuration"');
+    expect(html).toContain("https://github.com/AU-Bcube/b-cube-idp");
+  });
+
+  it("모든 사용자 화면의 B-CUBE 통합 로그인은 안내 페이지로 가는 링크다", async () => {
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", { scope: "openid email" });
+    const consent = await (await browser.fetch(res.headers.get("Location")!)).text();
+    const notFound = await (await appFetch(`${ISSUER}/nope`)).text();
+    for (const html of [consent, notFound]) {
+      expect(html).toMatch(/<p class="idp-brand"><a href="\/">B-CUBE 통합 로그인<\/a><\/p>/);
+    }
+  });
+
   it("Carbon 스타일 파일을 쓰고 인라인 스타일과 스크립트를 허용하지 않는다", async () => {
     const res = await appFetch(`${ISSUER}/nope`);
     expect(res.status).toBe(404);
