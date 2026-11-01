@@ -82,6 +82,34 @@ export type StudentLookup = (config: Config, email: string, scopes: readonly Sco
 
 let appliedProxyUrl = "";
 
+/** 로그에 남길 mhaksa 기능 경로. param에는 학번과 포털 ID가 있어 남기지 않는다. */
+function mhaksaAction(data: unknown): string {
+  try {
+    const { url } = JSON.parse(String(data)) as { url?: unknown };
+    return typeof url === "string" ? url : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+const sendMhaksaRequest = axios.getAdapter(axios.defaults.adapter);
+
+// 패키지가 요청을 직접 보내고 interceptor는 axios.create로 물려받지 않아, 물려받는 adapter를 감싸 요청마다 로그를 남긴다.
+// 요청이 끝나지 않고 함수가 끊겨도 보이도록 시작할 때도 남긴다. 응답 본문에는 민감한 열이 있어 남기지 않는다.
+axios.defaults.adapter = async (config) => {
+  const action = mhaksaAction(config.data);
+  const startedAt = Date.now();
+  console.info("[mhaksa] 요청 시작", action, appliedProxyUrl ? "프록시" : "직접 연결");
+  try {
+    const res = await sendMhaksaRequest(config);
+    console.info("[mhaksa] 요청 완료", action, `HTTP ${res.status}`, `${Date.now() - startedAt}ms`);
+    return res;
+  } catch (err) {
+    console.warn("[mhaksa] 요청 실패", action, err instanceof Error ? err.message : String(err), `${Date.now() - startedAt}ms`);
+    throw err;
+  }
+};
+
 /**
  * mhaksa 요청에 프록시를 건다. 패키지에 프록시 옵션이 없어, 패키지의 axios.create가 물려받는 기본값에 agent를 넣는다.
  * package.json의 axios가 패키지와 같은 인스턴스로 풀려야 한다. test/mhaksa-proxy.test.ts가 이를 확인한다.

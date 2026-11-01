@@ -92,6 +92,8 @@ Netlify Functions는 기본으로 미국 동부(Ohio) 리전에서 실행된다.
   - 학교 방화벽이 해외 IP를 막는지, 30443 포트의 TLS 인증서 체인이 완전한지 확인한다.
   - 함수 리전을 국내와 가까운 곳으로 바꿀 수 있는지 Netlify 설정(Functions → Region)을 확인한다.
   - 그래도 접근할 수 없으면 국내 프록시를 두거나 조회 부분을 다른 곳으로 옮겨야 한다. 이 경우 담당자와 상의한다.
+- [ ] 함수 로그에서 mhaksa 요청을 하나씩 볼 수 있다. `[mhaksa] 요청 시작` 뒤에 `요청 완료`(상태, 소요 시간)나 `요청 실패`(오류, 소요 시간)가 나온다.
+  시작만 있고 끝이 없으면 요청이 끝나기 전에 함수가 끊긴 것이다. 로그에는 mhaksa 기능 경로만 남고 학번, 포털 ID, 응답 내용은 남지 않는다.
 - [ ] 프록시를 쓰면 Netlify 환경 변수 `MHAKSA_PROXY_URL`에 주소를 넣고 다시 배포한다. mhaksa 요청에만 적용된다.
   - `http`, `https`, `socks`, `socks4`, `socks4a`, `socks5`, `socks5h`를 쓸 수 있다. 예: `http://user:pass@proxy.example.com:3128`, `socks5h://user:pass@proxy.example.com:1080`
   - 계정의 특수문자는 퍼센트 인코딩한다. `socks5h`는 프록시에서 DNS를 조회하고 `socks5`는 함수에서 조회한다.
