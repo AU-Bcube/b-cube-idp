@@ -167,8 +167,8 @@ importers:
   .:
     dependencies:
       ajou-internal-id-federation:
-        specifier: github:AU-Bcube/ajou-internal-id-federation#de3ed48975512c42039ce0832a55293628db7d48
-        version: git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#de3ed48975512c42039ce0832a55293628db7d48(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
+        specifier: github:AU-Bcube/ajou-internal-id-federation#a36347227d7960a7b602c80bb6e197f0088a238c
+        version: git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#a36347227d7960a7b602c80bb6e197f0088a238c(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
       hono:
         specifier: ^4.13.14
         version: 4.13.14
@@ -1705,8 +1705,8 @@ packages:
     resolution: {integrity: sha512-QT8i0hCz6C/KQ+KTAbSNwCHDGdmUJl2tp2ZpNlGSWCfhUNVbYG2WLE3MdZGBAgXPV4GAvjGMxo+C1hroyxmZEg==}
     engines: {node: '>= 14'}
 
-  ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#de3ed48975512c42039ce0832a55293628db7d48:
-    resolution: {commit: de3ed48975512c42039ce0832a55293628db7d48, repo: https://github.com/AU-Bcube/ajou-internal-id-federation.git, type: git}
+  ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#a36347227d7960a7b602c80bb6e197f0088a238c:
+    resolution: {commit: a36347227d7960a7b602c80bb6e197f0088a238c, repo: https://github.com/AU-Bcube/ajou-internal-id-federation.git, type: git}
     version: 0.1.0
     engines: {node: '>=18'}
 
@@ -6457,7 +6457,7 @@ snapshots:
 
   agent-base@8.0.0: {}
 
-  ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#de3ed48975512c42039ce0832a55293628db7d48(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2):
+  ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#a36347227d7960a7b602c80bb6e197f0088a238c(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2):
     dependencies:
       axios: 1.21.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
     transitivePeerDependencies:

@@ -81,11 +81,12 @@ export type StudentLookup = (config: Config, email: string, scopes: readonly Sco
  * 로그인한 학교 계정의 학생 정보를 조회한다.
  * 이메일 local part를 포털 ID로 쓰고, 조회 결과의 학교 이메일이 로그인 이메일과 같은지 다시 확인한다.
  */
-export const lookupStudent: StudentLookup = async (config, email, scopes) => {
+export const lookupStudent: StudentLookup = async (_config, email, scopes) => {
   const username = email.slice(0, email.lastIndexOf("@"));
   let student;
   try {
-    student = await new Student().byUsername(username).interval(config.mhaksaIntervalMs).build();
+    // 요청 간격은 패키지 기본값을 따른다. 패키지가 모든 조회에 걸쳐 간격을 지킨다.
+    student = await new Student().byUsername(username).build();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // 패키지는 조회 결과가 없을 때 "no ..." 메시지로 던진다. 그 외는 네트워크나 mhaksa 오류다.

@@ -19,7 +19,6 @@ export interface Config {
   signingKey: string;
   /** 쿠키·인가 코드·액세스 토큰 암호화 키를 파생하는 비밀값 */
   encryptionSecret: string;
-  mhaksaIntervalMs: number;
   devFakeLogin: boolean;
   /** 관리 화면에 들어갈 수 있는 이메일. 비어 있으면 관리 화면을 쓸 수 없다. */
   adminEmails: ReadonlySet<string>;
@@ -82,12 +81,6 @@ export function parseConfig(raw: RawEnv): Config {
   const dbName = str(raw.DB_NAME);
   if (!dbName) errors.push("DB_NAME이 필요합니다");
 
-  const intervalRaw = str(raw.MHAKSA_INTERVAL_MS);
-  const mhaksaIntervalMs = intervalRaw === "" ? 3000 : Number(intervalRaw);
-  if (!Number.isInteger(mhaksaIntervalMs) || mhaksaIntervalMs < 0) {
-    errors.push(`MHAKSA_INTERVAL_MS는 0 이상의 정수여야 합니다 (현재: "${intervalRaw}")`);
-  }
-
   const adminEmails = new Set(
     str(raw.ADMIN_EMAILS)
       .split(",")
@@ -108,7 +101,6 @@ export function parseConfig(raw: RawEnv): Config {
     googleClientSecret,
     signingKey,
     encryptionSecret,
-    mhaksaIntervalMs,
     devFakeLogin,
     adminEmails,
     dbConnectionString,

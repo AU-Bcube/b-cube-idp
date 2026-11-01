@@ -1,5 +1,5 @@
 allowBuilds:
-  'ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#de3ed48975512c42039ce0832a55293628db7d48': true
+  'ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#a36347227d7960a7b602c80bb6e197f0088a238c': true
   esbuild: true
   sharp: false
   # 테스트가 처음 실행될 때 mongod 바이너리를 받는다.
@@ -7,3 +7,21 @@ allowBuilds:
   netlify-cli: false
   unix-dgram: false
   '@parcel/watcher': false
+  # Carbon과 IBM Plex의 postinstall은 IBM 텔레메트리 전송(ibmtelemetry)뿐이다. 빌드에 필요 없다.
+  '@carbon/colors': false
+  '@carbon/feature-flags': false
+  '@carbon/grid': false
+  '@carbon/layout': false
+  '@carbon/motion': false
+  '@carbon/styles': false
+  '@carbon/themes': false
+  '@carbon/type': false
+  '@ibm/plex': false
+  '@ibm/plex-mono': false
+  '@ibm/plex-sans': false
+  '@ibm/plex-sans-arabic': false
+  '@ibm/plex-sans-devanagari': false
+  '@ibm/plex-sans-hebrew': false
+  '@ibm/plex-sans-thai': false
+  '@ibm/plex-sans-thai-looped': false
+  '@ibm/plex-serif': false

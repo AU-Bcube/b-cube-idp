@@ -68,7 +68,7 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
   | `ENCRYPTION_SECRET` | `pnpm keys` 출력 (secret) |
   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 2단계의 값 (secret) |
   | `ADMIN_EMAILS` | 관리자 학교 이메일, 쉼표 구분 |
-  | `ALLOWED_EMAIL_DOMAIN`, `MHAKSA_INTERVAL_MS` | 선택. 기본값 `ajou.ac.kr`, `3000` |
+  | `ALLOWED_EMAIL_DOMAIN` | 선택. 기본값 `ajou.ac.kr` |
 - [ ] Domain management에서 `id.b-cube.kr`을 custom domain으로 추가하고, `b-cube.kr` DNS에 Netlify가 안내하는 CNAME을 만든다. HTTPS 인증서는 Netlify가 발급한다.
 - [ ] 배포한 뒤 https://id.b-cube.kr/health 와 https://id.b-cube.kr/.well-known/openid-configuration 을 확인한다.
   https://id.b-cube.kr 에 안내 페이지가 나오고, https://id.b-cube.kr/consents 가 Google 로그인으로 넘어가는지도 확인한다.
@@ -176,6 +176,8 @@ https://id.b-cube.kr 첫 화면(안내 페이지)의 버튼과 동의 화면 하
   pnpm add git+ssh://git@github.com/AU-Bcube/ajou-internal-id-federation.git#<새 커밋 해시>
   ```
   허용 키가 틀리면 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`가 나오고, 메시지에 정확한 키가 있다.
+- [ ] **`ERR_PNPM_IGNORED_BUILDS`가 나오면**: 메시지에 나온 패키지의 install 스크립트를 확인하고 `pnpm-workspace.yaml`의 `allowBuilds`에 `true`/`false`로 적는다.
+  `@carbon/*`, `@ibm/plex*`의 postinstall은 IBM 텔레메트리 전송(`ibmtelemetry`)뿐이라 `false`로 두었다. Carbon을 올려 패키지가 늘면 같은 방식으로 더한다.
 - [ ] **서명 키 교체**(유출이 의심될 때): `pnpm keys`로 새 `SIGNING_KEY`를 만들어 Netlify 환경 변수를 바꾸고 다시 배포한다.
   환경 변수는 다시 배포해야 함수에 반영된다.
   토큰 수명이 5분이고 SP는 id_token을 받자마자 검증하므로, 교체 순간 진행 중이던 로그인 몇 건만 실패한다.
@@ -191,7 +193,9 @@ https://id.b-cube.kr 첫 화면(안내 페이지)의 버튼과 동의 화면 하
 
 - 로그아웃 엔드포인트가 없다. IdP는 자체 세션을 만들지 않으므로 SP 세션만 끊으면 된다. 다만 Google 세션은 남는다.
 - Netlify 함수 인스턴스가 새로 뜨면(cold start) MongoDB 연결 시간이 그 요청에 더해진다.
-- mhaksa 조회는 요청 사이에 `MHAKSA_INTERVAL_MS`(기본 3000ms)를 기다린다. `student` scope는 약 3초, `sohakoe`까지 요청하면 약 6초가 로그인에 더해진다.
+- mhaksa 요청 간격은 IdP가 정하지 않고 `ajou-internal-id-federation`의 기본값(현재 1000ms)을 따른다. `student` scope는 약 1초, `sohakoe`까지 요청하면 약 2초가 로그인에 더해진다.
+  간격은 함수 인스턴스 안의 모든 요청이 공유한다. 같은 인스턴스에서 직전 로그인의 mhaksa 조회가 끝난 지 1초가 안 됐으면 남은 시간만큼 더 기다린다.
+  패키지를 올릴 때 기본 간격이 바뀌었는지 확인한다.
 - 화면은 IBM Plex Sans KR과 D2Coding을 jsDelivr에서 받는다. jsDelivr에 접근할 수 없으면 시스템 글꼴로 표시된다. 동작에는 영향이 없다.
 - 동적 SP의 client_secret은 만료되지 않는다(`client_secret_expires_at: 0`).
 - 내 동의 관리(`/consents`)에서 철회해도 이미 SP에 전달한 정보는 지워지지 않는다. 삭제는 각 SP가 처리해야 한다.
