@@ -1,5 +1,5 @@
 allowBuilds:
-  'ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#de3ed48975512c42039ce0832a55293628db7d48': true
+  'ajou-internal-id-federation@git+https://github.com/AU-Bcube/ajou-internal-id-federation.git#a36347227d7960a7b602c80bb6e197f0088a238c': true
   esbuild: true
   sharp: false
   # 테스트가 처음 실행될 때 mongod 바이너리를 받는다.
