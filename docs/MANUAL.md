@@ -1,6 +1,7 @@
-# 개발자 수동 작업
+# IdP 운영 매뉴얼
 
-코드로 대신할 수 없어 개발자가 직접 해야 하는 일을 순서대로 적는다. 완료하면 체크한다.
+IdP 운영자(관리자)가 직접 해야 하는 일을 순서대로 적는다. 완료하면 체크한다.
+SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION_PROMPT.md)를 넘긴다. 이 문서에는 적지 않는다.
 
 ## 0. 먼저 알아둘 것
 
@@ -20,8 +21,7 @@
 - [ ] `pnpm install`
 - [ ] `cp .dev.vars.example .dev.vars` 후 `pnpm keys` 출력의 두 줄(`SIGNING_KEY`, `ENCRYPTION_SECRET`)을 붙여 넣는다.
 - [ ] `pnpm db:migrate:local && pnpm dev` 후 http://localhost:8787/.well-known/openid-configuration 이 열리는지 확인한다.
-- [ ] 로컬 SP를 연결하려면 http://localhost:8787/admin/clients/new 에서 SP를 만들고(`DEV_FAKE_LOGIN=true`이면 바로 들어간다),
-  화면에 나온 `client_id`, `client_secret`을 로컬 SP 설정에 넣는다.
+- [ ] 로컬에서 SP 연동을 시험하려면 http://localhost:8787/admin/clients/new 에서 SP를 만든다(`DEV_FAKE_LOGIN=true`이면 바로 들어간다).
 
 ## 2. Google OAuth 클라이언트
 
@@ -87,60 +87,43 @@
 - [ ] 허용 목록에 열을 더할 때는 민감한 정보(주민등록번호, 연락처, 주소, 사진, 비밀번호 관련 열)가 아닌지 확인한다.
 - [ ] 학생이 아닌 계정(교직원 등)은 `student`, `sohakoe` scope 요청 시 "학생 정보를 찾을 수 없습니다"로 막힌다. 이 동작이 맞는지 정한다.
 
-## 6. SP 등록: subdomain-lending (`domain.b-cube.kr`)
+## 6. SP 등록과 관리
 
-IdP 쪽:
+SP를 만드는 방법은 두 가지다. 어느 쪽이든 `client_secret`은 화면이나 응답에 한 번만 나오고 IdP에는 해시만 남는다.
 
-- [ ] `/admin/clients/new`에서 SP를 만든다. redirect_uri는 `https://domain.b-cube.kr/auth/callback`,
-  scope는 필요한 것만 고른다(지금은 `openid email profile student`).
-- [ ] 화면에 한 번 나오는 `client_id`, `client_secret`을 subdomain-lending 담당자에게 안전한 경로로 전달한다.
+| 방법 | 언제 |
+| --- | --- |
+| 관리 화면에서 추가 | 관리자가 SP 담당자에게 받은 정보로 대신 등록할 때 |
+| 동적 등록 (RFC 7591) | SP 개발자가 스스로 등록하고 RFC 7592로 계속 관리할 때 |
 
-subdomain-lending 쪽(별도 저장소에서 작업한다):
+관리 화면에서 추가:
 
-- [ ] 지금 Google을 직접 부르는 `worker/auth/google.ts`를 IdP로 바꾼다.
-  | 항목 | 지금 | 바꿀 값 |
-  | --- | --- | --- |
-  | authorization endpoint | `https://accounts.google.com/o/oauth2/v2/auth` | `https://id.b-cube.kr/authorize` |
-  | token endpoint | `https://oauth2.googleapis.com/token` | `https://id.b-cube.kr/token` |
-  | JWKS | `https://www.googleapis.com/oauth2/v3/certs` | `https://id.b-cube.kr/jwks.json` |
-  | issuer | `https://accounts.google.com` | `https://id.b-cube.kr` |
-  | 서명 알고리즘 | `RS256` | `ES256` |
-  | client_id / secret | Google 값 | 위에서 받은 `client_id` / `client_secret` |
-  | scope | `openid email profile` | `openid email profile student` |
-- [ ] `hd`, `prompt=select_account` 파라미터는 빼도 된다(IdP가 Google에 붙인다). 넣어도 무시된다.
-- [ ] IdP는 학교 Workspace 계정만 통과시키므로 IdP id_token에는 `hd` 클레임이 없다. SP의 `REQUIRE_HD` 검사는 끄거나 IdP issuer일 때 생략한다.
-- [ ] 콜백에서 `error=access_denied`(사용자가 동의 거부)를 처리한다.
-- [ ] IdP 토큰 응답의 `id_token`에서 `student.id`(학번) 등 필요한 클레임을 읽는다.
-- [ ] IdP의 Google OAuth 클라이언트와 SP의 기존 Google OAuth 클라이언트는 별개다. 전환 후 SP의 Google 클라이언트는 삭제한다.
-- [ ] `users.google_sub`에는 IdP `sub`(Google `sub`와 같은 값)가 들어간다. 기존 사용자와 그대로 이어진다.
+- [ ] SP 담당자에게 서비스 이름, redirect_uri 목록, 필요한 scope를 받는다.
+- [ ] `/admin/clients/new`에서 SP를 만든다. 관리자가 만든 SP는 바로 활성이고 검토 완료로 표시된다.
+- [ ] 화면에 한 번 나오는 `client_id`, `client_secret`을 SP 담당자에게 안전한 경로로 전달한다.
 
-## 6-1. 새 SP 등록 방법 고르기
+동적 등록:
 
-| 방법 | 언제 | 절차 |
-| --- | --- | --- |
-| 관리 화면에서 추가 | 관리자가 SP 담당자에게 받은 정보로 대신 등록할 때 | 6절과 같다. `/admin/clients/new` → 화면에 한 번 나오는 `client_id`, `client_secret`을 전달 |
-| 동적 등록 (RFC 7591) | SP 개발자가 스스로 등록하고 RFC 7592로 계속 관리할 때 | 아래 절차 |
+- [ ] `/admin/tokens`에서 등록 토큰을 발급한다. 용도에 받는 사람을 적고, 사용 횟수는 1, 유효 기간은 짧게 둔다.
+- [ ] 토큰을 SP 개발자에게 안전한 경로로 전달한다. 토큰은 화면에 한 번만 나온다. 등록 방법은 SP_MIGRATION_PROMPT.md에 있다.
+- [ ] `student`나 `sohakoe`를 요청한 SP는 승인 대기로 `/admin`에 나온다. 내용을 확인하고 승인한다.
+- [ ] 학생 정보가 필요 없는 SP(`openid email profile`만)는 바로 쓸 수 있지만 동의 화면에 "검토하지 않은 서비스" 경고가 나온다. 확인했으면 승인해 경고를 없앤다.
 
-동적 등록 절차:
+승인 전에 확인할 것:
 
-- [ ] 관리자가 `/admin/tokens`에서 등록 토큰을 발급한다. 용도에 받는 사람을 적고, 사용 횟수는 1, 유효 기간은 짧게 둔다.
-- [ ] 토큰을 SP 개발자에게 안전한 경로로 전달한다. 토큰은 화면에 한 번만 나온다.
-- [ ] SP 개발자는 아래처럼 등록한다. 응답의 `client_secret`과 `registration_access_token`은 SP 비밀 저장소에만 둔다.
-  ```sh
-  curl -sS https://id.b-cube.kr/register \
-    -H "Authorization: Bearer $IAT" -H 'Content-Type: application/json' \
-    -d '{"client_name":"서비스 이름","redirect_uris":["https://svc.b-cube.kr/auth/callback"],"scope":"openid email profile"}'
-  ```
-- [ ] `student`나 `sohakoe`를 요청했다면 응답의 `b_cube_status`가 `pending`이다. 관리자가 `/admin`에서 내용을 확인하고 승인한다.
-  승인 전에 확인할 것: 서비스 이름이 실제 운영 주체와 맞는지, `redirect_uris`의 도메인이 그 서비스 것인지, 학생 정보가 정말 필요한지.
-- [ ] 학생 정보가 필요 없는 SP(`openid email profile`만)는 바로 쓸 수 있다. 동의 화면에는 "검토하지 않은 서비스" 경고가 나온다. 관리자가 승인하면 경고가 사라진다.
+- 서비스 이름이 실제 운영 주체와 맞는지
+- `redirect_uris`의 도메인이 그 서비스 것인지. https만 허용되고(localhost는 http 허용) 글자 하나까지 일치해야 한다
+- 학생 정보(`student`, `sohakoe`)가 정말 필요한지. 승인한 SP가 RFC 7592로 민감한 scope를 늘리면 다시 승인 대기가 된다
 
-공통:
+문제가 생겼을 때:
 
-- `redirect_uris`는 정확히 일치해야 하고 https만 허용된다(localhost는 http 허용).
 - 문제가 생긴 SP는 `/admin`에서 바로 중지한다. 중지하면 새 로그인과 토큰 교환이 모두 막힌다.
-- `client_secret`이 유출되면 관리 화면에서 재발급한다. 이전 값은 바로 무효가 되므로 SP 설정도 곧바로 바꾼다.
-- SP 저장소의 인증을 IdP로 옮기는 작업은 [SP_MIGRATION_PROMPT.md](SP_MIGRATION_PROMPT.md)를 Claude Code에 넘겨 진행할 수 있다.
+- `client_secret`이 유출되면 SP 상세에서 재발급한다. 이전 값은 바로 무효가 되므로 SP 담당자가 곧바로 바꿔야 한다.
+
+할 일:
+
+- [ ] subdomain-lending(`domain.b-cube.kr`)을 관리 화면에서 등록한다. redirect_uri는 `https://domain.b-cube.kr/auth/callback`,
+  scope는 `openid email profile student`. `client_id`, `client_secret`과 SP_MIGRATION_PROMPT.md를 담당자에게 전달한다.
 
 ## 7. 정기 작업
 
@@ -151,10 +134,9 @@ subdomain-lending 쪽(별도 저장소에서 작업한다):
   허용 키가 틀리면 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`가 나오고, 메시지에 정확한 키가 있다.
 - [ ] **서명 키 교체**(유출이 의심될 때): `pnpm keys`로 새 `SIGNING_KEY`를 만들어 `wrangler secret put` 한다.
   토큰 수명이 5분이고 SP는 id_token을 받자마자 검증하므로, 교체 순간 진행 중이던 로그인 몇 건만 실패한다.
-  SP가 JWKS를 캐시하면 새 `kid`를 만났을 때 다시 받아오는지 확인한다(jose `createRemoteJWKSet`은 자동으로 다시 받는다).
+  SP는 새 `kid`를 만나면 JWKS를 다시 받아야 한다. 교체 전에 SP 담당자에게 알린다.
 - [ ] **암호화 키 교체**: `ENCRYPTION_SECRET`을 바꾸면 진행 중인 로그인(최대 10분)과 발급된 access_token(최대 5분)이 무효가 된다.
-- [ ] **SP client_secret 교체**: 관리 화면 SP 상세에서 재발급 → SP 비밀값 교체. 그 사이에는 SP 로그인이 실패하므로 사용이 적은 시간에 한다.
-
+- [ ] **SP client_secret 교체**: SP 담당자와 시간을 맞춰 SP 상세에서 재발급하고 바로 전달한다. 담당자가 바꿀 때까지 그 SP 로그인이 실패하므로 사용이 적은 시간에 한다.
 - [ ] **관리자 바꾸기**: `pnpm wrangler secret put ADMIN_EMAILS`. 목록에서 빠진 관리자는 이미 열린 세션도 다음 요청부터 막힌다.
 - [ ] **감사 로그 확인**: `/admin/audit`에서 SP 등록·변경을 주기적으로 본다. 감사 로그는 지우지 않으므로 오래 쌓이면 D1에서 직접 정리한다.
 

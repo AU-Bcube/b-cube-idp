@@ -85,8 +85,9 @@ scope와 클레임:
 | `sohakoe` | `sohakoe_memberships: [{ name, year, semester, from, to }]` |
 
 - `student`, `sohakoe`는 관리자 승인이 있어야 쓸 수 있다. 승인 전이거나 중지된 SP로 로그인하면 IdP가 자기 오류 화면을 띄우고 이 서비스로 돌아오지 않는다.
-- id_token에는 `hd` 클레임이 없다. IdP가 이미 학교 Workspace 계정만 통과시키므로, 기존 hd 검사는 IdP issuer일 때 빼라.
+- id_token에는 `hd` 클레임이 없다. IdP가 이미 학교 Workspace 계정만 통과시키므로, 기존 hd 검사(`REQUIRE_HD` 같은 설정 포함)는 IdP issuer일 때 빼라.
   대신 `email`이 `@ajou.ac.kr`로 끝나는지는 방어적으로 한 번 더 확인해도 된다.
+- 인가 요청에 Google 전용 파라미터(`hd`, `prompt=select_account`, `access_type` 등)를 붙이지 마라. IdP가 Google에 직접 붙이고, SP가 보낸 값은 무시한다.
 
 콜백에서 처리할 오류(`error` 쿼리):
 
@@ -127,6 +128,7 @@ scope와 클레임:
 - 사용자 식별은 `sub`를 기준으로 하고, 기존 사용자 연결에만 email을 쓴다. 학생 정보 클레임은 필요한 것만 저장한다.
   학번 외의 학적 정보를 저장해야 하면 나에게 먼저 묻는다.
 - 기존 Google OAuth를 쓰던 서비스라면 IdP `sub`가 Google `sub`와 같은 값이므로 기존 google_sub와 그대로 이어진다.
+  전환 후에는 이 서비스의 Google OAuth 클라이언트와 관련 환경 변수가 필요 없다. 클라이언트 삭제는 내가 손으로 할 일로 보고하라.
   단, 로컬 IdP의 개발용 가짜 로그인은 `dev-<email>` 형태의 sub를 준다.
 - 개발용 가짜 로그인 같은 기존 개발 편의 기능이 있으면 유지하되, 운영에서 켜지지 않게 하는 안전장치도 유지한다.
 - 자체 인증 코드(비밀번호 해시, 회원가입, 재설정 메일)는 내가 정한 방식대로 비활성화하거나 지운다.
