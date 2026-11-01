@@ -8,7 +8,8 @@ import type { FlowPayload, HonoEnv } from "./types";
 import { DevLoginPage, ErrorPage, HomePage } from "./views";
 
 export function homePage(c: Context<HonoEnv>) {
-  return c.html(<HomePage emailDomain={c.var.config.allowedEmailDomain} />);
+  const { allowedEmailDomain, sourceUrl } = c.var.config;
+  return c.html(<HomePage emailDomain={allowedEmailDomain} sourceUrl={sourceUrl} />);
 }
 
 export function errorPage(c: Context<HonoEnv>, status: ContentfulStatusCode, title: string, message: string) {
