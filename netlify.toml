@@ -1,0 +1,17 @@
+# 환경 변수(ISSUER, DB_CONNECTION_STRING, SIGNING_KEY 등)는 여기가 아니라 Netlify 사이트 설정에 넣는다.
+# netlify.toml의 [build.environment]는 빌드에만 쓰이고 Functions 런타임에는 전달되지 않는다.
+[build]
+  command = "pnpm build:css"
+  publish = "public"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+
+# `pnpm dev`(netlify dev)는 .env를 읽는다. ISSUER(http://localhost:8787)와 같은 포트를 쓴다.
+[dev]
+  framework = "#static"
+  publish = "public"
+  port = 8787

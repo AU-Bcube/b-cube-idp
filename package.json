@@ -3,40 +3,33 @@
   "version": "1.0.0",
   "description": "B-CUBE OpenID Connect IdP",
   "scripts": {
-    "dev": "pnpm build:css && wrangler dev",
-    "deploy": "pnpm build:css && wrangler deploy",
+    "dev": "pnpm build:css && netlify dev",
+    "deploy": "netlify deploy --build --prod",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "cf-typegen": "wrangler types src/worker-configuration.d.ts",
-    "db:migrate:local": "wrangler d1 migrations apply b-cube-idp --local",
-    "db:migrate:remote": "wrangler d1 migrations apply b-cube-idp --remote",
     "keys": "node scripts/keys.mjs",
     "build:css": "node scripts/build-css.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "UNLICENSED",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "12.16.1",
-      "onFail": "download"
-    }
-  },
-  "packageManager": "pnpm@12.16.1",
   "type": "module",
   "dependencies": {
     "ajou-internal-id-federation": "github:AU-Bcube/ajou-internal-id-federation#de3ed48975512c42039ce0832a55293628db7d48",
     "hono": "^4.13.14",
-    "jose": "^6.2.13"
+    "jose": "^6.2.13",
+    "mongodb": "^7.8.0"
   },
   "devDependencies": {
     "@carbon/styles": "^1.118.0",
-    "@cloudflare/vitest-plugin": "^1.4.9",
+    "@netlify/functions": "^6.0.3",
+    "@types/node": "^22.20.5",
+    "mongodb-memory-server": "^11.3.0",
+    "netlify-cli": "^27.16.1",
+    "nock": "^15.0.5",
     "sass": "^1.107.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5",
-    "wrangler": "^4.154.0"
+    "vitest": "^5.0.5"
   },
   "private": true
 }

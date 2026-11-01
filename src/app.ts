@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { type Config, getConfig } from "./env";
+import type { Config } from "./env";
 import { adminRoutes } from "./routes/admin";
 import { devLoginRoutes, loginRoutes } from "./routes/login";
 import { errorPage } from "./respond";
@@ -17,13 +17,13 @@ export function createApp(config: Config): Hono<HonoEnv> {
 
   app.use("*", securityHeaders);
   app.use("*", async (c, next) => {
-    c.set("config", getConfig(c.env));
+    c.set("config", config);
     await next();
   });
 
   app.get("/", (c) => c.redirect("/.well-known/openid-configuration", 302));
   app.get("/health", async (c) => {
-    await c.env.DB.prepare("SELECT 1").first();
+    await c.env.DB.clients.estimatedDocumentCount();
     return c.json({ status: "ok", time: new Date().toISOString() });
   });
   app.route("/", oidcRoutes);
@@ -41,15 +41,14 @@ export function createApp(config: Config): Hono<HonoEnv> {
   return app;
 }
 
-const apps = new Map<string, Hono<HonoEnv>>();
+const apps = new WeakMap<Config, Hono<HonoEnv>>();
 
+/** getConfig가 환경 변수 객체마다 Config를 캐시하므로 앱도 Config마다 한 번만 만든다. */
 export function getApp(config: Config): Hono<HonoEnv> {
-  // 라우트 구성에 영향을 주는 값만 키로 쓴다.
-  const key = String(config.devFakeLogin);
-  let app = apps.get(key);
+  let app = apps.get(config);
   if (!app) {
     app = createApp(config);
-    apps.set(key, app);
+    apps.set(config, app);
   }
   return app;
 }

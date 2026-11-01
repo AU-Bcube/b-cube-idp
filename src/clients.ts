@@ -1,7 +1,8 @@
 /**
- * SP 저장소. 모든 SP는 D1에 있고, 관리 화면이나 동적 등록(RFC 7591)으로 만든다.
+ * SP 저장소. 모든 SP는 MongoDB에 있고, 관리 화면이나 동적 등록(RFC 7591)으로 만든다.
  */
 import { randomToken, sha256Hex } from "./crypto";
+import type { ClientDoc, Collections } from "./db";
 import { isScope, SCOPES, type Scope } from "./scopes";
 
 export type ClientStatus = "pending" | "active" | "suspended";
@@ -35,24 +36,6 @@ export interface Client {
   updatedAt: number;
 }
 
-interface ClientRow {
-  client_id: string;
-  name: string;
-  redirect_uris: string;
-  scopes: string;
-  token_endpoint_auth_method: string;
-  contacts: string;
-  client_uri: string | null;
-  secret_sha256: string;
-  registration_token_sha256: string | null;
-  status: ClientStatus;
-  reviewed_at: number | null;
-  reviewed_by: string | null;
-  created_by: string;
-  created_at: number;
-  updated_at: number;
-}
-
 const LOCALHOST_URL = /^http:\/\/localhost(?::\d{1,5})?\//;
 
 /** redirect_uri 규칙: https(또는 http://localhost), fragment 없음. */
@@ -67,42 +50,39 @@ export function isAllowedRedirectUri(uri: string): boolean {
   return url.protocol === "https:" || LOCALHOST_URL.test(uri);
 }
 
-function toClient(row: ClientRow): Client {
-  const scopes = (JSON.parse(row.scopes) as string[]).filter(isScope);
+function toClient(doc: ClientDoc): Client {
   return {
-    clientId: row.client_id,
-    name: row.name,
-    redirectUris: JSON.parse(row.redirect_uris) as string[],
-    scopes: new Set(scopes),
-    secretSha256: row.secret_sha256,
-    status: row.status,
-    reviewed: row.reviewed_at !== null,
-    tokenEndpointAuthMethod: row.token_endpoint_auth_method as TokenAuthMethod,
-    contacts: JSON.parse(row.contacts) as string[],
-    clientUri: row.client_uri,
-    registrationTokenSha256: row.registration_token_sha256,
-    reviewedAt: row.reviewed_at,
-    reviewedBy: row.reviewed_by,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    clientId: doc._id,
+    name: doc.name,
+    redirectUris: doc.redirect_uris,
+    scopes: new Set(doc.scopes.filter(isScope)),
+    secretSha256: doc.secret_sha256,
+    status: doc.status,
+    reviewed: doc.reviewed_at !== null,
+    tokenEndpointAuthMethod: doc.token_endpoint_auth_method,
+    contacts: doc.contacts,
+    clientUri: doc.client_uri,
+    registrationTokenSha256: doc.registration_token_sha256,
+    reviewedAt: doc.reviewed_at,
+    reviewedBy: doc.reviewed_by,
+    createdBy: doc.created_by,
+    createdAt: doc.created_at,
+    updatedAt: doc.updated_at,
   };
 }
 
 /** 상태는 호출한 쪽이 확인한다. */
-export async function findClient(db: D1Database, clientId: string): Promise<Client | null> {
-  const row = await db.prepare(`SELECT * FROM clients WHERE client_id = ?`).bind(clientId).first<ClientRow>();
-  return row ? toClient(row) : null;
+export async function findClient(db: Collections, clientId: string): Promise<Client | null> {
+  const doc = await db.clients.findOne({ _id: clientId });
+  return doc ? toClient(doc) : null;
 }
 
-export async function listClients(db: D1Database): Promise<Client[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT * FROM clients
-       ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 ELSE 2 END, created_at DESC`,
-    )
-    .all<ClientRow>();
-  return results.map(toClient);
+const STATUS_ORDER: Record<ClientStatus, number> = { pending: 0, active: 1, suspended: 2 };
+
+/** 승인 대기, 활성, 중지 순서이고 같은 상태 안에서는 최근에 만든 것이 먼저다. */
+export async function listClients(db: Collections): Promise<Client[]> {
+  const docs = await db.clients.find().sort({ created_at: -1 }).toArray();
+  return docs.map(toClient).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 }
 
 /** SP 메타데이터. RFC 7591 요청과 관리 화면 입력이 이 모양으로 모인다. */
@@ -225,7 +205,7 @@ export interface CreatedClient {
 }
 
 export async function createClient(
-  db: D1Database,
+  db: Collections,
   meta: ClientMetadata,
   opts: { createdBy: string; withRegistrationToken: boolean; reviewedBy?: string },
 ): Promise<CreatedClient> {
@@ -235,91 +215,73 @@ export async function createClient(
   const registrationToken = opts.withRegistrationToken ? randomToken(32) : null;
   // 관리자가 직접 만든 SP는 만든 순간 검토한 것으로 본다.
   const reviewed = opts.reviewedBy !== undefined;
-  const status = reviewed ? "active" : statusFor(meta.scopes);
-  await db
-    .prepare(
-      `INSERT INTO clients (client_id, name, redirect_uris, scopes, token_endpoint_auth_method, contacts, client_uri,
-         secret_sha256, registration_token_sha256, status, reviewed_at, reviewed_by, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      clientId,
-      meta.name,
-      JSON.stringify(meta.redirectUris),
-      JSON.stringify(meta.scopes),
-      meta.tokenEndpointAuthMethod,
-      JSON.stringify(meta.contacts),
-      meta.clientUri,
-      await sha256Hex(clientSecret),
-      registrationToken ? await sha256Hex(registrationToken) : null,
-      status,
-      reviewed ? now : null,
-      opts.reviewedBy ?? null,
-      opts.createdBy,
-      now,
-      now,
-    )
-    .run();
-  const client = await findClient(db, clientId);
-  if (!client) throw new Error("client insert failed");
-  return { client, clientSecret, registrationToken };
+  const doc: ClientDoc = {
+    _id: clientId,
+    name: meta.name,
+    redirect_uris: meta.redirectUris,
+    scopes: meta.scopes,
+    token_endpoint_auth_method: meta.tokenEndpointAuthMethod,
+    contacts: meta.contacts,
+    client_uri: meta.clientUri,
+    secret_sha256: await sha256Hex(clientSecret),
+    registration_token_sha256: registrationToken ? await sha256Hex(registrationToken) : null,
+    status: reviewed ? "active" : statusFor(meta.scopes),
+    reviewed_at: reviewed ? now : null,
+    reviewed_by: opts.reviewedBy ?? null,
+    created_by: opts.createdBy,
+    created_at: now,
+    updated_at: now,
+  };
+  await db.clients.insertOne(doc);
+  return { client: toClient(doc), clientSecret, registrationToken };
 }
 
 /** 메타데이터를 바꾼다. SP가 바꾸면 statusFor 규칙으로 상태를 다시 정하고, 관리자가 바꾸면 상태를 유지한다. */
 export async function updateClientMetadata(
-  db: D1Database,
+  db: Collections,
   previous: Client,
   meta: ClientMetadata,
   opts: { byAdmin?: string } = {},
 ): Promise<Client> {
-  const now = Date.now();
-  const status = opts.byAdmin ? previous.status : statusFor(meta.scopes, previous);
-  await db
-    .prepare(
-      `UPDATE clients SET name = ?, redirect_uris = ?, scopes = ?, token_endpoint_auth_method = ?, contacts = ?,
-         client_uri = ?, status = ?, updated_at = ? WHERE client_id = ?`,
-    )
-    .bind(
-      meta.name,
-      JSON.stringify(meta.redirectUris),
-      JSON.stringify(meta.scopes),
-      meta.tokenEndpointAuthMethod,
-      JSON.stringify(meta.contacts),
-      meta.clientUri,
-      status,
-      now,
-      previous.clientId,
-    )
-    .run();
-  return (await findClient(db, previous.clientId))!;
+  const doc = await db.clients.findOneAndUpdate(
+    { _id: previous.clientId },
+    {
+      $set: {
+        name: meta.name,
+        redirect_uris: meta.redirectUris,
+        scopes: meta.scopes,
+        token_endpoint_auth_method: meta.tokenEndpointAuthMethod,
+        contacts: meta.contacts,
+        client_uri: meta.clientUri,
+        status: opts.byAdmin ? previous.status : statusFor(meta.scopes, previous),
+        updated_at: Date.now(),
+      },
+    },
+    { returnDocument: "after" },
+  );
+  if (!doc) throw new Error("client update failed");
+  return toClient(doc);
 }
 
 export async function setClientStatus(
-  db: D1Database,
+  db: Collections,
   clientId: string,
   status: ClientStatus,
   reviewer?: string,
 ): Promise<void> {
   const now = Date.now();
-  if (reviewer) {
-    await db
-      .prepare(`UPDATE clients SET status = ?, reviewed_at = ?, reviewed_by = ?, updated_at = ? WHERE client_id = ?`)
-      .bind(status, now, reviewer, now, clientId)
-      .run();
-  } else {
-    await db.prepare(`UPDATE clients SET status = ?, updated_at = ? WHERE client_id = ?`).bind(status, now, clientId).run();
-  }
+  await db.clients.updateOne(
+    { _id: clientId },
+    { $set: { status, updated_at: now, ...(reviewer ? { reviewed_at: now, reviewed_by: reviewer } : {}) } },
+  );
 }
 
-export async function rotateClientSecret(db: D1Database, clientId: string): Promise<string> {
+export async function rotateClientSecret(db: Collections, clientId: string): Promise<string> {
   const secret = randomToken(32);
-  await db
-    .prepare(`UPDATE clients SET secret_sha256 = ?, updated_at = ? WHERE client_id = ?`)
-    .bind(await sha256Hex(secret), Date.now(), clientId)
-    .run();
+  await db.clients.updateOne({ _id: clientId }, { $set: { secret_sha256: await sha256Hex(secret), updated_at: Date.now() } });
   return secret;
 }
 
-export async function deleteClient(db: D1Database, clientId: string): Promise<void> {
-  await db.prepare(`DELETE FROM clients WHERE client_id = ?`).bind(clientId).run();
+export async function deleteClient(db: Collections, clientId: string): Promise<void> {
+  await db.clients.deleteOne({ _id: clientId });
 }

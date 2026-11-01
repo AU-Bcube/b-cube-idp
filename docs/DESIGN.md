@@ -5,7 +5,7 @@
 - `/home/hyeonseungkang/projects/subdomain-lending` 은 b-cube-idp의 SP가 된다.
 - 의존성으로 `git@github.com:AU-Bcube/ajou-internal-id-federation.git`를 갖는다.
 - `ajou-internal-id-federation` 패키지로 조회한 학생 정보를 SP에 제공할지 동의 화면을 갖는다.
-- cloudfalre wrangler로 배포한다.
+- Netlify로 배포하고 MongoDB에 저장한다.
 - `b-cube-idp`는 public repo이다.
 - nodejs 기반, pnpm 사용.
 

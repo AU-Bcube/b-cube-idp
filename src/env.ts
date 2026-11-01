@@ -2,8 +2,12 @@
  * 환경 변수 파싱과 검증.
  *
  * - ISSUER가 http://localhost:* 이면 개발 모드다. 개발 모드에서만 DEV_FAKE_LOGIN을 켤 수 있다.
- * - 설정이 잘못되면 ConfigError를 던지고, fetch 핸들러는 모든 요청에 500을 반환한다.
+ * - 설정이 잘못되면 ConfigError를 던지고, 요청 핸들러는 모든 요청에 500을 반환한다.
+ * - Netlify Functions는 netlify.toml의 환경 변수를 런타임에 받지 못한다. 값은 Netlify 사이트 설정에 넣는다.
  */
+
+/** process.env 모양의 환경 변수 */
+export type RawEnv = Record<string, string | undefined>;
 
 export interface Config {
   issuer: string;
@@ -19,6 +23,9 @@ export interface Config {
   devFakeLogin: boolean;
   /** 관리 화면에 들어갈 수 있는 이메일. 비어 있으면 관리 화면을 쓸 수 없다. */
   adminEmails: ReadonlySet<string>;
+  /** MongoDB 연결 문자열 */
+  dbConnectionString: string;
+  dbName: string;
 }
 
 /** 개발 모드 + DEV_FAKE_LOGIN에서 ADMIN_EMAILS에 자동으로 들어가는 계정 */
@@ -42,9 +49,8 @@ function bool(name: string, value: unknown, errors: string[]): boolean {
   return false;
 }
 
-export function parseConfig(env: Env): Config {
+export function parseConfig(raw: RawEnv): Config {
   const errors: string[] = [];
-  const raw = env as unknown as Record<string, unknown>;
 
   const issuer = str(raw.ISSUER).replace(/\/+$/, "");
   if (!issuer) throw new ConfigError("ISSUER가 설정되지 않았습니다");
@@ -67,8 +73,14 @@ export function parseConfig(env: Env): Config {
   const encryptionSecret = str(raw.ENCRYPTION_SECRET);
   if (encryptionSecret.length < 43) errors.push("ENCRYPTION_SECRET은 32바이트 이상이어야 합니다 (`pnpm keys`로 만든다)");
 
-  const allowedEmailDomain = str(raw.ALLOWED_EMAIL_DOMAIN).toLowerCase();
-  if (!allowedEmailDomain) errors.push("ALLOWED_EMAIL_DOMAIN이 필요합니다");
+  const allowedEmailDomain = (str(raw.ALLOWED_EMAIL_DOMAIN) || "ajou.ac.kr").toLowerCase();
+
+  const dbConnectionString = str(raw.DB_CONNECTION_STRING);
+  if (!/^mongodb(\+srv)?:\/\//.test(dbConnectionString)) {
+    errors.push("DB_CONNECTION_STRING은 mongodb:// 또는 mongodb+srv:// 주소여야 합니다");
+  }
+  const dbName = str(raw.DB_NAME);
+  if (!dbName) errors.push("DB_NAME이 필요합니다");
 
   const intervalRaw = str(raw.MHAKSA_INTERVAL_MS);
   const mhaksaIntervalMs = intervalRaw === "" ? 3000 : Number(intervalRaw);
@@ -99,13 +111,15 @@ export function parseConfig(env: Env): Config {
     mhaksaIntervalMs,
     devFakeLogin,
     adminEmails,
+    dbConnectionString,
+    dbName,
   };
 }
 
 const cache = new WeakMap<object, Config>();
 
 /** env 객체 단위로 파싱 결과를 캐시한다. 실패하면 매번 다시 던진다. */
-export function getConfig(env: Env): Config {
+export function getConfig(env: RawEnv): Config {
   let config = cache.get(env);
   if (!config) {
     config = parseConfig(env);

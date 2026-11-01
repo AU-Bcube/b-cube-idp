@@ -1,8 +1,8 @@
-import { env, SELF } from "cloudflare:test";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setClientStatus } from "../src/clients";
 import { createInitialAccessToken } from "../src/initial-access-tokens";
 import {
+  appFetch,
   basicAuth,
   Browser,
   csrfFrom,
@@ -14,6 +14,7 @@ import {
   register,
   resetFakes,
   SENSITIVE,
+  testDb,
   type Registered,
 } from "./helpers";
 
@@ -23,7 +24,7 @@ beforeEach(resetFakes);
 const SP_REDIRECT = "https://new-sp.example.com/cb";
 
 async function issueToken(maxUses = 1, ttlDays = 7) {
-  return (await createInitialAccessToken(env.DB, { label: "test", maxUses, ttlDays, createdBy: "test" })).token;
+  return (await createInitialAccessToken(await testDb(), { label: "test", maxUses, ttlDays, createdBy: "test" })).token;
 }
 
 function metadata(extra: Record<string, unknown> = {}) {
@@ -40,12 +41,12 @@ function manage(client: Registered, init: RequestInit & { token?: string } = {})
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${init.token ?? client.registration_access_token}`);
   if (init.body) headers.set("Content-Type", "application/json");
-  return SELF.fetch(client.registration_client_uri, { ...init, headers });
+  return appFetch(client.registration_client_uri, { ...init, headers });
 }
 
 describe("RFC 7591 등록", () => {
   it("discovery에 registration_endpoint가 있다", async () => {
-    const doc = (await (await SELF.fetch(`${ISSUER}/.well-known/openid-configuration`)).json()) as Record<string, unknown>;
+    const doc = (await (await appFetch(`${ISSUER}/.well-known/openid-configuration`)).json()) as Record<string, unknown>;
     expect(doc.registration_endpoint).toBe(`${ISSUER}/register`);
   });
 
@@ -86,7 +87,7 @@ describe("RFC 7591 등록", () => {
       redirectUri: SP_REDIRECT,
       scope: "openid email",
     });
-    const token = await SELF.fetch(`${ISSUER}/token`, {
+    const token = await appFetch(`${ISSUER}/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -111,8 +112,8 @@ describe("RFC 7591 등록", () => {
   });
 
   it("만료된 토큰은 쓸 수 없다", async () => {
-    const { token, id } = await createInitialAccessToken(env.DB, { label: "x", maxUses: 5, ttlDays: 1, createdBy: "t" });
-    await env.DB.prepare(`UPDATE initial_access_tokens SET expires_at = 1 WHERE id = ?`).bind(id).run();
+    const { token, id } = await createInitialAccessToken(await testDb(), { label: "x", maxUses: 5, ttlDays: 1, createdBy: "t" });
+    await (await testDb()).initialAccessTokens.updateOne({ _id: id }, { $set: { expires_at: 1 } });
     expect((await register(token, metadata())).status).toBe(401);
   });
 
@@ -140,7 +141,7 @@ describe("민감한 scope 승인", () => {
     expect(res.status).toBe(403);
     expect(await res.text()).toContain("승인");
 
-    await setClientStatus(env.DB, client.client_id, "active", "t-admin@ajou.ac.kr");
+    await setClientStatus(await testDb(), client.client_id, "active", "t-admin@ajou.ac.kr");
     const browser = new Browser();
     expect((await loginUntilConsent(browser, "hong@ajou.ac.kr", opts)).res.headers.get("Location")).toBe("/consent");
     const html = await (await browser.fetch("/consent")).text();
@@ -150,7 +151,7 @@ describe("민감한 scope 승인", () => {
 
   it("승인 후 SP가 민감한 scope를 더 늘리면 다시 승인 대기가 된다", async () => {
     const client = await registerOk({ scope: "openid student" });
-    await setClientStatus(env.DB, client.client_id, "active", "t-admin@ajou.ac.kr");
+    await setClientStatus(await testDb(), client.client_id, "active", "t-admin@ajou.ac.kr");
 
     // 같은 민감 scope 안에서 바꾸면 활성 상태를 유지한다.
     const same = await manage(client, {
@@ -170,10 +171,10 @@ describe("민감한 scope 승인", () => {
     const client = await registerOk();
     const opts = { clientId: client.client_id, redirectUri: SP_REDIRECT, scope: "openid email" };
     const { location, verifier } = await loginAndConsent(new Browser(), "hong@ajou.ac.kr", opts);
-    await setClientStatus(env.DB, client.client_id, "suspended");
+    await setClientStatus(await testDb(), client.client_id, "suspended");
 
     expect((await loginUntilConsent(new Browser(), "hong@ajou.ac.kr", opts)).res.status).toBe(403);
-    const token = await SELF.fetch(`${ISSUER}/token`, {
+    const token = await appFetch(`${ISSUER}/token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -194,7 +195,7 @@ describe("민감한 scope 승인", () => {
     const browser = new Browser();
     await loginUntilConsent(browser, "hong@ajou.ac.kr", { clientId: client.client_id, redirectUri: SP_REDIRECT, scope: "openid" });
     const csrf = csrfFrom(await (await browser.fetch("/consent")).text());
-    await setClientStatus(env.DB, client.client_id, "suspended");
+    await setClientStatus(await testDb(), client.client_id, "suspended");
     const res = await browser.postForm("/consent", { csrf, decision: "allow" });
     const location = new URL(res.headers.get("Location")!);
     expect(location.searchParams.get("error")).toBe("unauthorized_client");

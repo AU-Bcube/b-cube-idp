@@ -3,12 +3,12 @@
 <img src="assets/b-cube-idp-ko-logo.png" height="84" style="margin-right: 32;">
 <img src="assets/b-cube-idp-en-logo.png" height="84">
 
-B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Cloudflare Workers에서 동작한다.
+B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Netlify Functions(Node)에서 동작하고 MongoDB에 저장한다.
 
 - 사용자 인증은 `@ajou.ac.kr` Google Workspace 계정으로만 한다. 비밀번호를 받거나 저장하지 않는다.
 - 조회한 정보는 동의 화면에 그대로 보여주고, 사용자가 동의한 경우에만 SP에 전달한다.
-- 사용자 정보와 학생 정보는 저장하지 않는다. D1에는 SP 등록 정보, 등록 토큰 해시, 관리 감사 로그, 이미 사용한 인가 코드의 ID만 남는다.
-- SP는 모두 D1에 있고, 관리 화면이나 동적 등록(RFC 7591/7592)으로 만든다.
+- 사용자 정보와 학생 정보는 저장하지 않는다. MongoDB에는 SP 등록 정보, 등록 토큰 해시, 관리 감사 로그, 이미 사용한 인가 코드의 ID만 남는다.
+- SP는 모두 MongoDB에 있고, 관리 화면이나 동적 등록(RFC 7591/7592)으로 만든다.
 
 설치, 배포, SP 등록·승인 같은 IdP 운영 절차는 [docs/MANUAL.md](docs/MANUAL.md)에 있다.
 SP 저장소에서 Claude Code로 기존 인증을 이 IdP로 옮길 때는 [docs/SP_MIGRATION_PROMPT.md](docs/SP_MIGRATION_PROMPT.md)를 쓴다.
@@ -77,16 +77,17 @@ SP ──/token (client_secret + PKCE)──▶ id_token (ES256), access_token
 
 ```sh
 pnpm install
-cp .dev.vars.example .dev.vars   # pnpm keys 출력으로 채운다
-pnpm db:migrate:local
-pnpm dev                          # http://localhost:8787
+cp .env.example .env   # MongoDB 정보와 pnpm keys 출력으로 채운다
+pnpm dev               # netlify dev, http://localhost:8787
 pnpm test
 pnpm typecheck
 ```
 
 화면은 IBM Carbon(`@carbon/styles`)을 쓰는 서버 렌더링이다. 스크립트는 없고, 다크 모드는 `prefers-color-scheme`을 따른다.
 스타일 원본은 [src/styles/app.scss](src/styles/app.scss)이고, `pnpm build:css`가 `public/assets/app.css`로 컴파일한다. 이 파일은 커밋하지 않는다.
-`pnpm dev`와 `pnpm run deploy`는 먼저 CSS를 빌드한다. `wrangler`를 직접 실행하려면 `pnpm build:css`를 먼저 실행한다.
+`pnpm dev`와 Netlify 빌드는 먼저 CSS를 빌드한다.
+MongoDB 인덱스는 처음 연결할 때 코드가 만든다([src/db.ts](src/db.ts)). 따로 마이그레이션할 것은 없다.
+테스트는 mongodb-memory-server로 메모리 MongoDB를 띄운다. 처음 실행할 때 mongod 바이너리를 내려받는다.
 
 `DEV_FAKE_LOGIN=true`이면 Google 대신 이메일 입력 화면이 나오고 가짜 학생 정보를 쓴다. `ISSUER`가 localhost일 때만 켤 수 있다.
 이때 `admin@ajou.ac.kr`이 관리자로 자동 추가되므로 http://localhost:8787/admin 에 바로 들어갈 수 있다.
@@ -95,10 +96,11 @@ pnpm typecheck
 
 ```
 src/
-  index.ts         fetch, scheduled(사용한 코드 기록 정리)
+  server.ts        요청 처리 진입점(플랫폼 무관)
   app.ts           라우트 등록
   env.ts           환경 변수 검증
-  clients.ts       SP 저장소(D1), RFC 7591 메타데이터 검증, 승인 규칙
+  db.ts            MongoDB 연결, 컬렉션, 인덱스(사용한 코드는 TTL 인덱스로 정리)
+  clients.ts       SP 저장소, RFC 7591 메타데이터 검증, 승인 규칙
   initial-access-tokens.ts  등록 토큰
   admin-session.ts 관리 화면 세션(암호화 쿠키)
   audit.ts         감사 로그
@@ -113,6 +115,6 @@ src/
   routes/admin.tsx 관리 화면
   views.tsx, admin-views.tsx  화면 (Carbon 클래스)
   styles/app.scss  Carbon 스타일과 간격 조정
-migrations/        D1 스키마
+netlify/functions/idp.mts  Netlify Function. public/의 정적 파일이 없는 경로를 모두 받는다
 scripts/           키 생성, CSS 빌드
 ```
