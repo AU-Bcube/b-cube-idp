@@ -21,7 +21,6 @@ export default defineConfig(async () => ({
       GOOGLE_CLIENT_SECRET: "test-google-client-secret",
       SIGNING_KEY: await testSigningKey(),
       ENCRYPTION_SECRET: "test-encryption-secret-0123456789abcdefghijkl",
-      MHAKSA_INTERVAL_MS: "0",
       ADMIN_EMAILS: "t-admin@ajou.ac.kr",
     },
   },
