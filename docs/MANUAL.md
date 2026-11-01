@@ -176,6 +176,8 @@ https://id.b-cube.kr 첫 화면(안내 페이지)의 버튼과 동의 화면 하
   pnpm add git+ssh://git@github.com/AU-Bcube/ajou-internal-id-federation.git#<새 커밋 해시>
   ```
   허용 키가 틀리면 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`가 나오고, 메시지에 정확한 키가 있다.
+- [ ] **`ERR_PNPM_IGNORED_BUILDS`가 나오면**: 메시지에 나온 패키지의 install 스크립트를 확인하고 `pnpm-workspace.yaml`의 `allowBuilds`에 `true`/`false`로 적는다.
+  `@carbon/*`, `@ibm/plex*`의 postinstall은 IBM 텔레메트리 전송(`ibmtelemetry`)뿐이라 `false`로 두었다. Carbon을 올려 패키지가 늘면 같은 방식으로 더한다.
 - [ ] **서명 키 교체**(유출이 의심될 때): `pnpm keys`로 새 `SIGNING_KEY`를 만들어 Netlify 환경 변수를 바꾸고 다시 배포한다.
   환경 변수는 다시 배포해야 함수에 반영된다.
   토큰 수명이 5분이고 SP는 id_token을 받자마자 검증하므로, 교체 순간 진행 중이던 로그인 몇 건만 실패한다.
@@ -192,6 +194,8 @@ https://id.b-cube.kr 첫 화면(안내 페이지)의 버튼과 동의 화면 하
 - 로그아웃 엔드포인트가 없다. IdP는 자체 세션을 만들지 않으므로 SP 세션만 끊으면 된다. 다만 Google 세션은 남는다.
 - Netlify 함수 인스턴스가 새로 뜨면(cold start) MongoDB 연결 시간이 그 요청에 더해진다.
 - mhaksa 조회는 요청 사이에 `MHAKSA_INTERVAL_MS`(기본 3000ms)를 기다린다. `student` scope는 약 3초, `sohakoe`까지 요청하면 약 6초가 로그인에 더해진다.
+  간격은 함수 인스턴스 안의 모든 요청이 공유한다. 같은 인스턴스에서 직전 로그인의 mhaksa 조회가 끝난 지 3초가 안 됐으면 남은 시간만큼 더 기다린다.
+  `ajou-internal-id-federation`의 기본값은 1000ms지만 IdP는 이 환경 변수 값을 넘기므로 영향이 없다.
 - 화면은 IBM Plex Sans KR과 D2Coding을 jsDelivr에서 받는다. jsDelivr에 접근할 수 없으면 시스템 글꼴로 표시된다. 동작에는 영향이 없다.
 - 동적 SP의 client_secret은 만료되지 않는다(`client_secret_expires_at: 0`).
 - 내 동의 관리(`/consents`)에서 철회해도 이미 SP에 전달한 정보는 지워지지 않는다. 삭제는 각 SP가 처리해야 한다.
