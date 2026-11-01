@@ -73,6 +73,7 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
   | `ADMIN_EMAILS` | 관리자 학교 이메일, 쉼표 구분 |
   | `SOURCE_URL` | 이 저장소의 GitHub 주소. 안내 페이지의 소스 코드 링크(AGPL)로 쓴다. 비우면 링크가 사라지므로 꼭 넣는다 |
   | `ALLOWED_EMAIL_DOMAIN` | 선택. 기본값 `ajou.ac.kr` |
+  | `MHAKSA_PROXY_URL` | 선택 (secret). mhaksa 요청을 보낼 프록시. 5단계 참고 |
 - [ ] Netlify 비밀값 스캔은 secret 값을 저장소와 빌드 결과에서 찾고, 있으면 빌드를 막는다. 운영 `DB_NAME`은 secret이고 값이 프로젝트 이름과 같다.
   그래서 코드, 문서, 파일 이름에 프로젝트 이름을 소문자 하이픈 표기로 쓰지 않는다(대소문자를 구분하므로 `B-CUBE IdP` 같은 표기는 괜찮다).
   저장소 주소도 그 이름을 담고 있어 코드에 적지 않고 `SOURCE_URL` 환경 변수로 넣는다. 스캔에 걸리면 걸린 곳의 표기를 바꾼다. `SECRETS_SCAN_OMIT_KEYS`로 `DB_NAME`을 빼지 않는다.
@@ -91,6 +92,10 @@ Netlify Functions는 기본으로 미국 동부(Ohio) 리전에서 실행된다.
   - 학교 방화벽이 해외 IP를 막는지, 30443 포트의 TLS 인증서 체인이 완전한지 확인한다.
   - 함수 리전을 국내와 가까운 곳으로 바꿀 수 있는지 Netlify 설정(Functions → Region)을 확인한다.
   - 그래도 접근할 수 없으면 국내 프록시를 두거나 조회 부분을 다른 곳으로 옮겨야 한다. 이 경우 담당자와 상의한다.
+- [ ] 프록시를 쓰면 Netlify 환경 변수 `MHAKSA_PROXY_URL`에 주소를 넣고 다시 배포한다. mhaksa 요청에만 적용된다.
+  - `http`, `https`, `socks`, `socks4`, `socks4a`, `socks5`, `socks5h`를 쓸 수 있다. 예: `http://user:pass@proxy.example.com:3128`, `socks5h://user:pass@proxy.example.com:1080`
+  - 계정의 특수문자는 퍼센트 인코딩한다. `socks5h`는 프록시에서 DNS를 조회하고 `socks5`는 함수에서 조회한다.
+  - mhaksa와의 TLS는 프록시를 지나도 끝단에서 검증한다. 프록시는 접속 대상과 시각을 볼 수 있고, `http` 프록시는 프록시 계정이 평문으로 전달되므로 인터넷 구간에는 쓰지 않는다.
 
 ## 6. 학적 필드 의미 확인
 
