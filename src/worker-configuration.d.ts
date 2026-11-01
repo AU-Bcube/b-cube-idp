@@ -12,7 +12,6 @@ interface __BaseEnv_Env {
 	ADMIN_EMAILS: string;
 	GOOGLE_CLIENT_ID: string;
 	GOOGLE_CLIENT_SECRET: string;
-	CLIENTS: string;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
@@ -25,7 +24,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "ALLOWED_EMAIL_DOMAIN" | "MHAKSA_INTERVAL_MS" | "ISSUER" | "DEV_FAKE_LOGIN" | "SIGNING_KEY" | "ENCRYPTION_SECRET" | "ADMIN_EMAILS" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "CLIENTS">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "ALLOWED_EMAIL_DOMAIN" | "MHAKSA_INTERVAL_MS" | "ISSUER" | "DEV_FAKE_LOGIN" | "SIGNING_KEY" | "ENCRYPTION_SECRET" | "ADMIN_EMAILS" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">> {}
 }
 declare module "*.txt" {
 	const value: string;

@@ -1,8 +1,7 @@
 /**
- * SP 저장소. 정적 SP(wrangler.jsonc CLIENTS)와 D1의 동적 SP를 같은 모양으로 다룬다.
+ * SP 저장소. 모든 SP는 D1에 있고, 관리 화면이나 동적 등록(RFC 7591)으로 만든다.
  */
 import { randomToken, sha256Hex } from "./crypto";
-import type { Config } from "./env";
 import { isScope, SCOPES, type Scope } from "./scopes";
 
 export type ClientStatus = "pending" | "active" | "suspended";
@@ -12,24 +11,19 @@ export const TOKEN_AUTH_METHODS: readonly TokenAuthMethod[] = ["client_secret_ba
 /** 관리자 승인 없이는 쓸 수 없는 scope. mhaksa 학생 정보를 넘긴다. */
 export const SENSITIVE_SCOPES: ReadonlySet<Scope> = new Set(["student", "sohakoe"]);
 
-/** 동적 SP의 client_id 접두사. 정적 SP는 이 접두사를 쓸 수 없다. */
-export const DYNAMIC_CLIENT_PREFIX = "dyn-";
+/** 새로 만드는 SP의 client_id 접두사 */
+export const CLIENT_ID_PREFIX = "dyn-";
 
 export interface Client {
   clientId: string;
   name: string;
   redirectUris: readonly string[];
   scopes: ReadonlySet<Scope>;
-  /** client_secret의 SHA-256 hex. 빈 문자열이면 토큰을 받을 수 없다. */
+  /** client_secret의 SHA-256 hex */
   secretSha256: string;
   status: ClientStatus;
-  /** 관리자가 검토했거나 정적 SP이면 true */
+  /** 관리자가 검토했으면 true */
   reviewed: boolean;
-  source: "static" | "dynamic";
-}
-
-export interface DynamicClient extends Client {
-  source: "dynamic";
   tokenEndpointAuthMethod: TokenAuthMethod;
   contacts: string[];
   clientUri: string | null;
@@ -73,7 +67,7 @@ export function isAllowedRedirectUri(uri: string): boolean {
   return url.protocol === "https:" || LOCALHOST_URL.test(uri);
 }
 
-function toClient(row: ClientRow): DynamicClient {
+function toClient(row: ClientRow): Client {
   const scopes = (JSON.parse(row.scopes) as string[]).filter(isScope);
   return {
     clientId: row.client_id,
@@ -83,7 +77,6 @@ function toClient(row: ClientRow): DynamicClient {
     secretSha256: row.secret_sha256,
     status: row.status,
     reviewed: row.reviewed_at !== null,
-    source: "dynamic",
     tokenEndpointAuthMethod: row.token_endpoint_auth_method as TokenAuthMethod,
     contacts: JSON.parse(row.contacts) as string[],
     clientUri: row.client_uri,
@@ -96,33 +89,13 @@ function toClient(row: ClientRow): DynamicClient {
   };
 }
 
-export function staticClients(config: Config): Client[] {
-  return [...config.clients.values()].map((c) => ({
-    clientId: c.clientId,
-    name: c.name,
-    redirectUris: c.redirectUris,
-    scopes: c.scopes,
-    secretSha256: c.secretSha256,
-    status: "active",
-    reviewed: true,
-    source: "static",
-  }));
-}
-
-export async function findDynamicClient(db: D1Database, clientId: string): Promise<DynamicClient | null> {
-  if (!clientId.startsWith(DYNAMIC_CLIENT_PREFIX)) return null;
+/** 상태는 호출한 쪽이 확인한다. */
+export async function findClient(db: D1Database, clientId: string): Promise<Client | null> {
   const row = await db.prepare(`SELECT * FROM clients WHERE client_id = ?`).bind(clientId).first<ClientRow>();
   return row ? toClient(row) : null;
 }
 
-/** 정적 SP를 먼저 찾고, 없으면 D1에서 찾는다. 상태는 호출한 쪽이 확인한다. */
-export async function findClient(config: Config, db: D1Database, clientId: string): Promise<Client | null> {
-  const s = config.clients.get(clientId);
-  if (s) return staticClients(config).find((c) => c.clientId === clientId) ?? null;
-  return findDynamicClient(db, clientId);
-}
-
-export async function listDynamicClients(db: D1Database): Promise<DynamicClient[]> {
+export async function listClients(db: D1Database): Promise<Client[]> {
   const { results } = await db
     .prepare(
       `SELECT * FROM clients
@@ -215,7 +188,7 @@ export function parseClientMetadata(body: unknown): ClientMetadata {
 }
 
 /** RFC 7591 §3.2.1 응답에 들어가는 메타데이터 */
-export function metadataResponse(client: DynamicClient) {
+export function metadataResponse(client: Client) {
   return {
     client_id: client.clientId,
     client_id_issued_at: Math.floor(client.createdAt / 1000),
@@ -235,7 +208,7 @@ export function metadataResponse(client: DynamicClient) {
  * 민감한 scope를 요청하면 관리자 승인 전까지 pending이다.
  * 이미 검토한 SP라도 검토 당시보다 넓은 민감 scope를 요청하면 다시 pending이 된다.
  */
-export function statusFor(scopes: readonly Scope[], previous?: DynamicClient): ClientStatus {
+export function statusFor(scopes: readonly Scope[], previous?: Client): ClientStatus {
   if (previous?.status === "suspended") return "suspended";
   const sensitive = scopes.filter((s) => SENSITIVE_SCOPES.has(s));
   if (sensitive.length === 0) return "active";
@@ -246,7 +219,7 @@ export function statusFor(scopes: readonly Scope[], previous?: DynamicClient): C
 }
 
 export interface CreatedClient {
-  client: DynamicClient;
+  client: Client;
   clientSecret: string;
   registrationToken: string | null;
 }
@@ -257,7 +230,7 @@ export async function createClient(
   opts: { createdBy: string; withRegistrationToken: boolean; reviewedBy?: string },
 ): Promise<CreatedClient> {
   const now = Date.now();
-  const clientId = `${DYNAMIC_CLIENT_PREFIX}${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`;
+  const clientId = `${CLIENT_ID_PREFIX}${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`;
   const clientSecret = randomToken(32);
   const registrationToken = opts.withRegistrationToken ? randomToken(32) : null;
   // 관리자가 직접 만든 SP는 만든 순간 검토한 것으로 본다.
@@ -287,7 +260,7 @@ export async function createClient(
       now,
     )
     .run();
-  const client = await findDynamicClient(db, clientId);
+  const client = await findClient(db, clientId);
   if (!client) throw new Error("client insert failed");
   return { client, clientSecret, registrationToken };
 }
@@ -295,10 +268,10 @@ export async function createClient(
 /** 메타데이터를 바꾼다. SP가 바꾸면 statusFor 규칙으로 상태를 다시 정하고, 관리자가 바꾸면 상태를 유지한다. */
 export async function updateClientMetadata(
   db: D1Database,
-  previous: DynamicClient,
+  previous: Client,
   meta: ClientMetadata,
   opts: { byAdmin?: string } = {},
-): Promise<DynamicClient> {
+): Promise<Client> {
   const now = Date.now();
   const status = opts.byAdmin ? previous.status : statusFor(meta.scopes, previous);
   await db
@@ -318,7 +291,7 @@ export async function updateClientMetadata(
       previous.clientId,
     )
     .run();
-  return (await findDynamicClient(db, previous.clientId))!;
+  return (await findClient(db, previous.clientId))!;
 }
 
 export async function setClientStatus(

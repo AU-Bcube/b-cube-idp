@@ -15,6 +15,9 @@ import {
   loginAndConsent,
   loginUntilConsent,
   mhaksa,
+  OTHER_CLIENT_ID,
+  OTHER_CLIENT_SECRET,
+  OTHER_REDIRECT_URI,
   REDIRECT_URI,
   resetFakes,
   SENSITIVE,
@@ -84,8 +87,8 @@ describe("/authorize 검증", () => {
 
   it("SP에 허용되지 않은 scope는 거절한다", async () => {
     const { url } = await authorizeUrl({
-      clientId: "email-only",
-      redirectUri: "https://other.example.com/cb",
+      clientId: OTHER_CLIENT_ID,
+      redirectUri: OTHER_REDIRECT_URI,
       scope: "openid email student",
     });
     const res = await SELF.fetch(`${ISSUER}${url}`, { redirect: "manual" });
@@ -193,7 +196,7 @@ describe("로그인과 동의", () => {
     const wrong = await tokenRequest({ ...form, code_verifier: verifier }, basicAuth(CLIENT_ID, "wrong"));
     expect(wrong.status).toBe(401);
     // 다른 SP의 자격 증명으로는 이 코드를 쓸 수 없다.
-    const other = await tokenRequest({ ...form, code_verifier: verifier }, basicAuth("email-only", "other-secret"));
+    const other = await tokenRequest({ ...form, code_verifier: verifier }, basicAuth(OTHER_CLIENT_ID, OTHER_CLIENT_SECRET));
     expect(other.status).toBe(400);
 
     const post = await tokenRequest({ ...form, code_verifier: verifier, client_id: CLIENT_ID, client_secret: CLIENT_SECRET }, "");

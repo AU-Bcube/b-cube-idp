@@ -12,6 +12,10 @@ export const ISSUER = "http://localhost:8787"; // vitest.config.ts 바인딩과 
 export const CLIENT_ID = "test-sp";
 export const CLIENT_SECRET = "test-client-secret-0123456789abcdefghijklmnop";
 export const REDIRECT_URI = "https://sp.example.com/auth/callback";
+// scope가 openid, email뿐인 두 번째 SP. test/setup.ts가 둘 다 D1에 넣는다.
+export const OTHER_CLIENT_ID = "email-only";
+export const OTHER_CLIENT_SECRET = "other-secret";
+export const OTHER_REDIRECT_URI = "https://other.example.com/cb";
 const GOOGLE_CLIENT_ID = "test-google-client-id";
 // ajou-internal-id-federation이 요청하는 주소
 const MHAKSA_ENDPOINT = "https://mhaksa.ajou.ac.kr:30443/nt/cvt.do";

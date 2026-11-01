@@ -5,7 +5,7 @@ B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Cloudflare Workers�
 - 사용자 인증은 `@ajou.ac.kr` Google Workspace 계정으로만 한다. 비밀번호를 받거나 저장하지 않는다.
 - 조회한 정보는 동의 화면에 그대로 보여주고, 사용자가 동의한 경우에만 SP에 전달한다.
 - 사용자 정보와 학생 정보는 저장하지 않는다. D1에는 SP 등록 정보, 등록 토큰 해시, 관리 감사 로그, 이미 사용한 인가 코드의 ID만 남는다.
-- SP는 `wrangler.jsonc`에 적는 정적 SP와, 관리 화면이나 동적 등록(RFC 7591/7592)으로 만드는 동적 SP 두 종류다.
+- SP는 모두 D1에 있고, 관리 화면이나 동적 등록(RFC 7591/7592)으로 만든다.
 
 설치와 배포, SP 연동 절차는 [docs/MANUAL.md](docs/MANUAL.md)에 있다.
 SP 저장소에서 Claude Code로 기존 인증을 이 IdP로 옮길 때는 [docs/SP_MIGRATION_PROMPT.md](docs/SP_MIGRATION_PROMPT.md)를 쓴다.
@@ -54,13 +54,12 @@ SP ──/token (client_secret + PKCE)──▶ id_token (ES256), access_token
 
 - 값이 비어 있는 필드는 빠진다. 모든 값은 문자열이다.
 - mhaksa 응답의 다른 열(주민등록번호, 연락처, 사진, 비밀번호 해시 등)은 [src/student.ts](src/student.ts)의 허용 목록에서 걸러져 어디에도 전달되지 않는다.
-- SP별로 요청할 수 있는 scope는 `CLIENTS[].scopes`로 제한한다.
+- SP별로 요청할 수 있는 scope는 등록할 때 정한 scope로 제한한다.
 
 ## SP 등록과 관리
 
 | 방법 | 누가 | 상태 |
 | --- | --- | --- |
-| `wrangler.jsonc`의 `CLIENTS` (정적 SP) | 저장소에 커밋하고 배포하는 개발자 | 항상 활성, 관리 화면에서는 읽기만 |
 | 관리 화면 `/admin/clients/new` | 관리자 | 바로 활성, 검토 완료 |
 | `POST /register` (RFC 7591) | 관리자가 발급한 등록 토큰을 받은 SP 개발자 | `student`/`sohakoe`를 요청하면 승인 대기, 아니면 활성(미검토) |
 
@@ -75,7 +74,7 @@ SP ──/token (client_secret + PKCE)──▶ id_token (ES256), access_token
 
 ```sh
 pnpm install
-cp .dev.vars.example .dev.vars   # pnpm keys, pnpm client:secret 출력으로 채운다
+cp .dev.vars.example .dev.vars   # pnpm keys 출력으로 채운다
 pnpm db:migrate:local
 pnpm dev                          # http://localhost:8787
 pnpm test
@@ -96,7 +95,7 @@ src/
   index.ts         fetch, scheduled(사용한 코드 기록 정리)
   app.ts           라우트 등록
   env.ts           환경 변수 검증
-  clients.ts       SP 저장소(정적 + D1), RFC 7591 메타데이터 검증, 승인 규칙
+  clients.ts       SP 저장소(D1), RFC 7591 메타데이터 검증, 승인 규칙
   initial-access-tokens.ts  등록 토큰
   admin-session.ts 관리 화면 세션(암호화 쿠키)
   audit.ts         감사 로그
@@ -112,5 +111,5 @@ src/
   views.tsx, admin-views.tsx  화면 (Carbon 클래스)
   styles/app.scss  Carbon 스타일과 간격 조정
 migrations/        D1 스키마
-scripts/           키, client_secret 생성
+scripts/           키 생성, CSS 빌드
 ```

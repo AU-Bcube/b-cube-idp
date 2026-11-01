@@ -114,7 +114,7 @@ async function authenticateClient(c: Context<HonoEnv>, form: FormData): Promise<
       return null;
     }
   }
-  const client = clientId ? await findClient(c.var.config, c.env.DB, clientId) : null;
+  const client = clientId ? await findClient(c.env.DB, clientId) : null;
   if (!client || client.status !== "active" || !secret || !client.secretSha256) return null;
   return timingSafeEqual(await sha256Hex(secret), client.secretSha256) ? client : null;
 }
@@ -151,7 +151,7 @@ export const oidcRoutes = new Hono<HonoEnv>()
     const q = c.req.query();
 
     // client_id와 redirect_uri를 확인하기 전에는 SP로 리다이렉트하지 않는다(open redirect 방지).
-    const client = q.client_id ? await findClient(config, c.env.DB, q.client_id) : null;
+    const client = q.client_id ? await findClient(c.env.DB, q.client_id) : null;
     if (!client) return errorPage(c, 400, "등록되지 않은 서비스", "로그인을 요청한 서비스(client_id)를 찾을 수 없습니다.");
     if (client.status === "pending") {
       return errorPage(c, 403, "승인 대기 중인 서비스", `${client.name}은(는) B-CUBE 관리자의 승인을 기다리고 있습니다.`);

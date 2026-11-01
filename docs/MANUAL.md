@@ -8,8 +8,7 @@
   `pnpm install`은 그 저장소에 접근할 수 있는 GitHub SSH 키가 있어야 성공한다. 외부 기여자는 설치할 수 없다.
 - 비밀값(`SIGNING_KEY`, `ENCRYPTION_SECRET`, `GOOGLE_CLIENT_SECRET`, SP의 `client_secret`)은 저장소, 이슈, PR, 채팅에 붙여 넣지 않는다.
   `wrangler secret put`과 로컬 `.dev.vars`(gitignore됨)에만 둔다.
-- `wrangler.jsonc`의 `CLIENTS[].client_secret_sha256`은 공개되어도 된다. 256비트 랜덤 비밀값의 해시라서 역산할 수 없다.
-  비밀값을 직접 정하지 말고 반드시 `pnpm client:secret`으로 만든다.
+- SP는 모두 D1에 있다. 관리 화면이나 동적 등록(RFC 7591)으로만 만들고, `client_secret`은 IdP가 만들어 한 번만 보여준다.
 
 ## 1. 로컬 개발 환경
 
@@ -20,9 +19,9 @@
   ```
 - [ ] `pnpm install`
 - [ ] `cp .dev.vars.example .dev.vars` 후 `pnpm keys` 출력의 두 줄(`SIGNING_KEY`, `ENCRYPTION_SECRET`)을 붙여 넣는다.
-- [ ] 로컬 SP를 연결하려면 `pnpm client:secret`을 실행해 `client_secret_sha256`을 `.dev.vars`의 `CLIENTS`에 넣고,
-  `client_secret`은 로컬 SP 설정에 넣는다.
 - [ ] `pnpm db:migrate:local && pnpm dev` 후 http://localhost:8787/.well-known/openid-configuration 이 열리는지 확인한다.
+- [ ] 로컬 SP를 연결하려면 http://localhost:8787/admin/clients/new 에서 SP를 만들고(`DEV_FAKE_LOGIN=true`이면 바로 들어간다),
+  화면에 나온 `client_id`, `client_secret`을 로컬 SP 설정에 넣는다.
 
 ## 2. Google OAuth 클라이언트
 
@@ -92,10 +91,9 @@
 
 IdP 쪽:
 
-- [ ] `pnpm client:secret`을 실행한다.
-- [ ] `wrangler.jsonc`의 `CLIENTS`에서 `domain-console`의 `client_secret_sha256`을 출력값으로 바꾸고 `pnpm run deploy` 한다.
-  필요한 scope만 남긴다(지금은 `openid email profile student`).
-- [ ] `client_secret`은 subdomain-lending 담당자에게 안전한 경로로 전달한다.
+- [ ] `/admin/clients/new`에서 SP를 만든다. redirect_uri는 `https://domain.b-cube.kr/auth/callback`,
+  scope는 필요한 것만 고른다(지금은 `openid email profile student`).
+- [ ] 화면에 한 번 나오는 `client_id`, `client_secret`을 subdomain-lending 담당자에게 안전한 경로로 전달한다.
 
 subdomain-lending 쪽(별도 저장소에서 작업한다):
 
@@ -107,7 +105,7 @@ subdomain-lending 쪽(별도 저장소에서 작업한다):
   | JWKS | `https://www.googleapis.com/oauth2/v3/certs` | `https://id.b-cube.kr/jwks.json` |
   | issuer | `https://accounts.google.com` | `https://id.b-cube.kr` |
   | 서명 알고리즘 | `RS256` | `ES256` |
-  | client_id / secret | Google 값 | `domain-console` / 위에서 받은 `client_secret` |
+  | client_id / secret | Google 값 | 위에서 받은 `client_id` / `client_secret` |
   | scope | `openid email profile` | `openid email profile student` |
 - [ ] `hd`, `prompt=select_account` 파라미터는 빼도 된다(IdP가 Google에 붙인다). 넣어도 무시된다.
 - [ ] IdP는 학교 Workspace 계정만 통과시키므로 IdP id_token에는 `hd` 클레임이 없다. SP의 `REQUIRE_HD` 검사는 끄거나 IdP issuer일 때 생략한다.
@@ -120,8 +118,7 @@ subdomain-lending 쪽(별도 저장소에서 작업한다):
 
 | 방법 | 언제 | 절차 |
 | --- | --- | --- |
-| 정적 SP (`CLIENTS`) | B-CUBE가 직접 운영하는 핵심 SP. 변경 이력을 git에 남기고 싶을 때 | 6절과 같다. `client_id`는 `dyn-`으로 시작할 수 없다 |
-| 관리 화면에서 추가 | 관리자가 SP 담당자에게 받은 정보로 대신 등록할 때 | `/admin/clients/new` → 화면에 한 번 나오는 `client_id`, `client_secret`을 전달 |
+| 관리 화면에서 추가 | 관리자가 SP 담당자에게 받은 정보로 대신 등록할 때 | 6절과 같다. `/admin/clients/new` → 화면에 한 번 나오는 `client_id`, `client_secret`을 전달 |
 | 동적 등록 (RFC 7591) | SP 개발자가 스스로 등록하고 RFC 7592로 계속 관리할 때 | 아래 절차 |
 
 동적 등록 절차:
@@ -142,7 +139,7 @@ subdomain-lending 쪽(별도 저장소에서 작업한다):
 
 - `redirect_uris`는 정확히 일치해야 하고 https만 허용된다(localhost는 http 허용).
 - 문제가 생긴 SP는 `/admin`에서 바로 중지한다. 중지하면 새 로그인과 토큰 교환이 모두 막힌다.
-- `client_secret`이 유출되면 관리 화면에서 재발급한다. 정적 SP는 7절의 절차를 따른다.
+- `client_secret`이 유출되면 관리 화면에서 재발급한다. 이전 값은 바로 무효가 되므로 SP 설정도 곧바로 바꾼다.
 - SP 저장소의 인증을 IdP로 옮기는 작업은 [SP_MIGRATION_PROMPT.md](SP_MIGRATION_PROMPT.md)를 Claude Code에 넘겨 진행할 수 있다.
 
 ## 7. 정기 작업
@@ -156,7 +153,7 @@ subdomain-lending 쪽(별도 저장소에서 작업한다):
   토큰 수명이 5분이고 SP는 id_token을 받자마자 검증하므로, 교체 순간 진행 중이던 로그인 몇 건만 실패한다.
   SP가 JWKS를 캐시하면 새 `kid`를 만났을 때 다시 받아오는지 확인한다(jose `createRemoteJWKSet`은 자동으로 다시 받는다).
 - [ ] **암호화 키 교체**: `ENCRYPTION_SECRET`을 바꾸면 진행 중인 로그인(최대 10분)과 발급된 access_token(최대 5분)이 무효가 된다.
-- [ ] **SP client_secret 교체**: `pnpm client:secret` → 해시 교체 후 배포 → SP 비밀값 교체. 그 사이에는 SP 로그인이 실패하므로 사용이 적은 시간에 한다.
+- [ ] **SP client_secret 교체**: 관리 화면 SP 상세에서 재발급 → SP 비밀값 교체. 그 사이에는 SP 로그인이 실패하므로 사용이 적은 시간에 한다.
 
 - [ ] **관리자 바꾸기**: `pnpm wrangler secret put ADMIN_EMAILS`. 목록에서 빠진 관리자는 이미 열린 세션도 다음 요청부터 막힌다.
 - [ ] **감사 로그 확인**: `/admin/audit`에서 SP 등록·변경을 주기적으로 본다. 감사 로그는 지우지 않으므로 오래 쌓이면 D1에서 직접 정리한다.
