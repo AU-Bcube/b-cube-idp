@@ -1,29 +1,42 @@
-import { applyD1Migrations, env } from "cloudflare:test";
+import { inject } from "vitest";
 import { sha256Hex } from "../src/crypto";
-import { CLIENT_ID, CLIENT_SECRET, OTHER_CLIENT_ID, OTHER_CLIENT_SECRET, OTHER_REDIRECT_URI, REDIRECT_URI } from "./helpers";
+import type { ClientDoc } from "../src/db";
+import {
+  CLIENT_ID,
+  CLIENT_SECRET,
+  OTHER_CLIENT_ID,
+  OTHER_CLIENT_SECRET,
+  OTHER_REDIRECT_URI,
+  REDIRECT_URI,
+  testDb,
+} from "./helpers";
 
-// 이미 적용된 마이그레이션은 건너뛰므로 파일마다 실행해도 된다.
-await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
+// test/global-setup.ts가 띄운 MongoDB를 쓴다. 테스트 파일마다 DB를 따로 둬 서로 영향을 주지 않는다.
+process.env.DB_CONNECTION_STRING = inject("mongoUri");
+process.env.DB_NAME = `test-${crypto.randomUUID()}`;
 
 // 테스트용 SP. 관리자가 검토한 활성 SP로 둔다.
-const seed = env.DB.prepare(
-  `INSERT OR IGNORE INTO clients (client_id, name, redirect_uris, scopes, token_endpoint_auth_method,
-     secret_sha256, status, reviewed_at, reviewed_by, created_by, created_at, updated_at)
-   VALUES (?, ?, ?, ?, 'client_secret_basic', ?, 'active', 0, 'test', 'test', 0, 0)`,
-);
-await env.DB.batch([
-  seed.bind(
-    CLIENT_ID,
-    "테스트 SP",
-    JSON.stringify([REDIRECT_URI]),
-    JSON.stringify(["openid", "email", "profile", "student", "sohakoe"]),
-    await sha256Hex(CLIENT_SECRET),
-  ),
-  seed.bind(
-    OTHER_CLIENT_ID,
-    "이메일만",
-    JSON.stringify([OTHER_REDIRECT_URI]),
-    JSON.stringify(["openid", "email"]),
-    await sha256Hex(OTHER_CLIENT_SECRET),
-  ),
+async function seed(clientId: string, name: string, redirectUri: string, scopes: string[], secret: string): Promise<ClientDoc> {
+  return {
+    _id: clientId,
+    name,
+    redirect_uris: [redirectUri],
+    scopes,
+    token_endpoint_auth_method: "client_secret_basic",
+    contacts: [],
+    client_uri: null,
+    secret_sha256: await sha256Hex(secret),
+    registration_token_sha256: null,
+    status: "active",
+    reviewed_at: 0,
+    reviewed_by: "test",
+    created_by: "test",
+    created_at: 0,
+    updated_at: 0,
+  };
+}
+
+await (await testDb()).clients.insertMany([
+  await seed(CLIENT_ID, "테스트 SP", REDIRECT_URI, ["openid", "email", "profile", "student", "sohakoe"], CLIENT_SECRET),
+  await seed(OTHER_CLIENT_ID, "이메일만", OTHER_REDIRECT_URI, ["openid", "email"], OTHER_CLIENT_SECRET),
 ]);

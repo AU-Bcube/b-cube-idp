@@ -1,29 +1,43 @@
 /**
  * 테스트 픽스처: 가짜 Google, 가짜 mhaksa, 쿠키를 들고 다니는 브라우저, SP 흉내.
  */
-import { createExecutionContext, env, SELF, waitOnExecutionContext } from "cloudflare:test";
+import type { webcrypto } from "node:crypto";
 import { exportJWK, generateKeyPair, SignJWT, type JWTPayload } from "jose";
+import nock from "nock";
 import { vi } from "vitest";
 import { sha256Base64url } from "../src/crypto";
+import { getCollections, type Collections } from "../src/db";
+import { getConfig } from "../src/env";
 import { GOOGLE_JWKS_URL, GOOGLE_TOKEN_URL } from "../src/google";
-import worker from "../src/index";
+import { handle } from "../src/server";
 
-export const ISSUER = "http://localhost:8787"; // vitest.config.ts 바인딩과 같은 값
+export const ISSUER = "http://localhost:8787"; // vitest.config.ts의 test.env와 같은 값
 export const CLIENT_ID = "test-sp";
 export const CLIENT_SECRET = "test-client-secret-0123456789abcdefghijklmnop";
 export const REDIRECT_URI = "https://sp.example.com/auth/callback";
-// scope가 openid, email뿐인 두 번째 SP. test/setup.ts가 둘 다 D1에 넣는다.
+// scope가 openid, email뿐인 두 번째 SP. test/setup.ts가 둘 다 DB에 넣는다.
 export const OTHER_CLIENT_ID = "email-only";
 export const OTHER_CLIENT_SECRET = "other-secret";
 export const OTHER_REDIRECT_URI = "https://other.example.com/cb";
 const GOOGLE_CLIENT_ID = "test-google-client-id";
-// ajou-internal-id-federation이 요청하는 주소
-const MHAKSA_ENDPOINT = "https://mhaksa.ajou.ac.kr:30443/nt/cvt.do";
+// ajou-internal-id-federation이 요청하는 주소. axios(Node http)로 보내므로 fetch가 아니라 nock으로 가로챈다.
+const MHAKSA_ORIGIN = "https://mhaksa.ajou.ac.kr:30443";
+const MHAKSA_PATH = "/nt/cvt.do";
+
+/** 앱을 직접 호출한다. 리다이렉트는 따라가지 않는다. */
+export function appFetch(input: string | URL, init?: RequestInit): Promise<Response> {
+  return handle(new Request(input, init), process.env);
+}
+
+/** 앱과 같은 DB */
+export function testDb(): Promise<Collections> {
+  return getCollections(getConfig(process.env));
+}
 
 // ---------------------------------------------------------------------------
 // 가짜 Google
 // ---------------------------------------------------------------------------
-let googleKey: CryptoKey;
+let googleKey: webcrypto.CryptoKey;
 let googleJwk: Record<string, unknown>;
 
 /** 다음 Google token 응답에 담을 id_token 클레임. null이면 400 응답 */
@@ -94,7 +108,7 @@ function mhaksaResponse(body: { url: string; param: Record<string, string> }): R
   return Response.json({ VariableList: { ErrorCode: "-1", ErrorMsg: "unknown" } });
 }
 
-/** 테스트 파일의 beforeAll에서 한 번 부른다. fetch를 가로채 Google과 mhaksa를 흉내 낸다. */
+/** 테스트 파일의 beforeAll에서 한 번 부른다. fetch와 Node http를 가로채 Google과 mhaksa를 흉내 낸다. */
 export async function installFakes(): Promise<void> {
   const pair = await generateKeyPair("RS256", { extractable: true });
   googleKey = pair.privateKey;
@@ -115,12 +129,18 @@ export async function installFakes(): Promise<void> {
         .sign(googleKey);
       return Response.json({ access_token: "at", id_token: idToken, token_type: "Bearer" });
     }
-    if (request.url === MHAKSA_ENDPOINT) {
-      if (mhaksa.down) throw new TypeError("network error");
-      return mhaksaResponse(await request.json());
-    }
     return realFetch(input, init);
   });
+
+  nock(MHAKSA_ORIGIN)
+    .persist()
+    .post(MHAKSA_PATH)
+    .reply(async (request: Request) => {
+      // 연결 실패 대신 503을 준다. 앱은 둘 다 "unavailable"로 다룬다. reply에서 던지면 처리되지 않은 reject가 남는다.
+      if (mhaksa.down) return [503, "unavailable"];
+      const res = mhaksaResponse((await request.json()) as { url: string; param: Record<string, string> });
+      return [res.status, await res.json()];
+    });
 }
 
 export function resetFakes(): void {
@@ -142,7 +162,7 @@ export class Browser {
     if (this.cookies.size > 0) {
       headers.set("Cookie", [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; "));
     }
-    const res = await SELF.fetch(new URL(path, ISSUER), { ...init, headers, redirect: "manual" });
+    const res = await appFetch(new URL(path, ISSUER), { ...init, headers });
     for (const line of res.headers.getSetCookie()) {
       const [pair, ...attrs] = line.split(";");
       const [name, ...rest] = pair!.split("=");
@@ -223,22 +243,17 @@ export function basicAuth(id: string, secret: string): string {
 }
 
 export function tokenRequest(form: Record<string, string>, auth = basicAuth(CLIENT_ID, CLIENT_SECRET)) {
-  return SELF.fetch(`${ISSUER}/token`, {
+  return appFetch(`${ISSUER}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: auth },
     body: new URLSearchParams(form).toString(),
   });
 }
 
-/** env 값을 바꿔 Worker를 직접 호출한다(설정 오류 확인용). */
-export function workerWith(overrides: Record<string, string>) {
-  const variant = { ...env, ...overrides } as unknown as Env;
-  return async (req: Request) => {
-    const ctx = createExecutionContext();
-    const res = await worker.fetch(req as Request<unknown, IncomingRequestCfProperties>, variant, ctx);
-    await waitOnExecutionContext(ctx);
-    return res;
-  };
+/** 환경 변수를 바꿔 앱을 호출한다(설정 오류 확인용). */
+export function appWith(overrides: Record<string, string>) {
+  const variant = { ...process.env, ...overrides };
+  return (req: Request) => handle(req, variant);
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +276,7 @@ export async function adminLogin(browser: Browser, email = ADMIN_EMAIL): Promise
 }
 
 export function register(token: string | null, body: unknown) {
-  return SELF.fetch(`${ISSUER}/register`, {
+  return appFetch(`${ISSUER}/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),

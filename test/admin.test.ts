@@ -1,9 +1,9 @@
-import { env, SELF } from "cloudflare:test";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { findClient } from "../src/clients";
 import {
   ADMIN_EMAIL,
   adminLogin,
+  appFetch,
   basicAuth,
   Browser,
   installFakes,
@@ -11,6 +11,7 @@ import {
   loginAndConsent,
   register,
   resetFakes,
+  testDb,
   tokenRequest,
   type Registered,
 } from "./helpers";
@@ -92,7 +93,7 @@ describe("SP 관리", () => {
   it("관리자가 만든 SP는 바로 활성·검토 상태이고 로그인할 수 있다", async () => {
     const { browser, csrf } = await loggedIn();
     const { clientId, clientSecret } = await createSp(browser, csrf, ["email", "student"]);
-    const client = await findClient(env.DB, clientId);
+    const client = await findClient(await testDb(), clientId);
     expect(client).toMatchObject({ status: "active", reviewed: true, reviewedBy: ADMIN_EMAIL, registrationTokenSha256: null });
     expect([...client!.scopes]).toEqual(["openid", "email", "student"]);
 
@@ -116,9 +117,8 @@ describe("SP 관리", () => {
   });
 
   it("승인 대기 SP를 승인하고, 중지·재개·삭제한다", async () => {
-    const { token } = await import("../src/initial-access-tokens").then((m) =>
-      m.createInitialAccessToken(env.DB, { label: "t", maxUses: 1, ttlDays: 1, createdBy: "t" }),
-    );
+    const { createInitialAccessToken } = await import("../src/initial-access-tokens");
+    const { token } = await createInitialAccessToken(await testDb(), { label: "t", maxUses: 1, ttlDays: 1, createdBy: "t" });
     const reg = (await (
       await register(token, { client_name: "학생 SP", redirect_uris: [SP_REDIRECT], scope: "openid student" })
     ).json()) as Registered;
@@ -129,18 +129,18 @@ describe("SP 관리", () => {
     const base = `/admin/clients/${reg.client_id}`;
 
     await browser.postForm(`${base}/approve`, { csrf });
-    expect(await findClient(env.DB, reg.client_id)).toMatchObject({ status: "active", reviewed: true });
+    expect(await findClient(await testDb(), reg.client_id)).toMatchObject({ status: "active", reviewed: true });
 
     await browser.postForm(`${base}/suspend`, { csrf });
-    expect((await findClient(env.DB, reg.client_id))?.status).toBe("suspended");
+    expect((await findClient(await testDb(), reg.client_id))?.status).toBe("suspended");
     // 중지된 SP는 승인으로 되살리지 않는다.
     await browser.postForm(`${base}/approve`, { csrf });
-    expect((await findClient(env.DB, reg.client_id))?.status).toBe("suspended");
+    expect((await findClient(await testDb(), reg.client_id))?.status).toBe("suspended");
     await browser.postForm(`${base}/resume`, { csrf });
-    expect((await findClient(env.DB, reg.client_id))?.status).toBe("active");
+    expect((await findClient(await testDb(), reg.client_id))?.status).toBe("active");
 
     await browser.postForm(`${base}/delete`, { csrf });
-    expect(await findClient(env.DB, reg.client_id)).toBeNull();
+    expect(await findClient(await testDb(), reg.client_id)).toBeNull();
 
     const audit = await (await browser.fetch("/admin/audit")).text();
     for (const action of ["client.register", "client.approve", "client.suspend", "client.resume", "client.delete"]) {
@@ -190,8 +190,8 @@ describe("등록 토큰", () => {
     const { browser, csrf } = await loggedIn();
     const issued = await browser.postForm("/admin/tokens", { csrf, label: "해시 확인", max_uses: "1", ttl_days: "1" });
     const [, token] = secretsFrom(await issued.text());
-    const rows = await env.DB.prepare(`SELECT * FROM initial_access_tokens WHERE label = '해시 확인'`).all();
-    expect(JSON.stringify(rows.results)).not.toContain(token!);
-    expect(await (await SELF.fetch(`${ISSUER}/admin/tokens`, { redirect: "manual" })).status).toBe(302);
+    const rows = await (await testDb()).initialAccessTokens.find({ label: "해시 확인" }).toArray();
+    expect(JSON.stringify(rows)).not.toContain(token!);
+    expect(await (await appFetch(`${ISSUER}/admin/tokens`)).status).toBe(302);
   });
 });

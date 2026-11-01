@@ -1,7 +1,8 @@
-import { env, SELF } from "cloudflare:test";
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from "jose";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  appFetch,
+  appWith,
   authorizeUrl,
   basicAuth,
   Browser,
@@ -21,15 +22,15 @@ import {
   REDIRECT_URI,
   resetFakes,
   SENSITIVE,
+  testDb,
   tokenRequest,
-  workerWith,
 } from "./helpers";
 
 beforeAll(installFakes);
 beforeEach(resetFakes);
 
 async function verifyIdToken(idToken: string) {
-  const jwks = (await (await SELF.fetch(`${ISSUER}/jwks.json`)).json()) as { keys: never[] };
+  const jwks = (await (await appFetch(`${ISSUER}/jwks.json`)).json()) as { keys: never[] };
   return jwtVerify(idToken, createLocalJWKSet(jwks), { issuer: ISSUER, audience: CLIENT_ID, algorithms: ["ES256"] });
 }
 
@@ -45,12 +46,12 @@ function redeem(location: URL, verifier: string, overrides: Record<string, strin
 
 describe("discovery", () => {
   it("issuer와 엔드포인트, 서명 키를 공개한다", async () => {
-    const doc = (await (await SELF.fetch(`${ISSUER}/.well-known/openid-configuration`)).json()) as Record<string, unknown>;
+    const doc = (await (await appFetch(`${ISSUER}/.well-known/openid-configuration`)).json()) as Record<string, unknown>;
     expect(doc.issuer).toBe(ISSUER);
     expect(doc.token_endpoint).toBe(`${ISSUER}/token`);
     expect(doc.code_challenge_methods_supported).toEqual(["S256"]);
 
-    const jwks = (await (await SELF.fetch(`${ISSUER}/jwks.json`)).json()) as { keys: Record<string, unknown>[] };
+    const jwks = (await (await appFetch(`${ISSUER}/jwks.json`)).json()) as { keys: Record<string, unknown>[] };
     expect(jwks.keys).toHaveLength(1);
     expect(jwks.keys[0]).toMatchObject({ kty: "EC", crv: "P-256", alg: "ES256", use: "sig" });
     expect(jwks.keys[0]).not.toHaveProperty("d");
@@ -60,11 +61,11 @@ describe("discovery", () => {
 describe("/authorize 검증", () => {
   it("등록되지 않은 client_id나 redirect_uri는 SP로 보내지 않고 오류 화면을 보여준다", async () => {
     const unknownClient = await authorizeUrl({ clientId: "nope" });
-    const res1 = await SELF.fetch(`${ISSUER}${unknownClient.url}`, { redirect: "manual" });
+    const res1 = await appFetch(`${ISSUER}${unknownClient.url}`);
     expect(res1.status).toBe(400);
 
     const badRedirect = await authorizeUrl({ redirectUri: "https://evil.example.com/cb" });
-    const res2 = await SELF.fetch(`${ISSUER}${badRedirect.url}`, { redirect: "manual" });
+    const res2 = await appFetch(`${ISSUER}${badRedirect.url}`);
     expect(res2.status).toBe(400);
     expect(res2.headers.get("Location")).toBeNull();
   });
@@ -76,7 +77,7 @@ describe("/authorize 검증", () => {
     ["prompt=none", { prompt: "none" }, "login_required"],
   ])("%s이면 redirect_uri로 오류를 돌려준다", async (_name, extra, error) => {
     const { url } = await authorizeUrl({ extra });
-    const res = await SELF.fetch(`${ISSUER}${url}`, { redirect: "manual" });
+    const res = await appFetch(`${ISSUER}${url}`);
     expect(res.status).toBe(302);
     const location = new URL(res.headers.get("Location")!);
     expect(location.origin + location.pathname).toBe(REDIRECT_URI);
@@ -91,7 +92,7 @@ describe("/authorize 검증", () => {
       redirectUri: OTHER_REDIRECT_URI,
       scope: "openid email student",
     });
-    const res = await SELF.fetch(`${ISSUER}${url}`, { redirect: "manual" });
+    const res = await appFetch(`${ISSUER}${url}`);
     expect(new URL(res.headers.get("Location")!).searchParams.get("error")).toBe("invalid_scope");
   });
 
@@ -167,7 +168,7 @@ describe("로그인과 동의", () => {
     const raw = JSON.stringify(payload);
     for (const v of [...Object.values(SENSITIVE), "base64-photo", "10.0.0.1"]) expect(raw).not.toContain(v);
 
-    const info = await SELF.fetch(`${ISSUER}/userinfo`, { headers: { Authorization: `Bearer ${body.access_token}` } });
+    const info = await appFetch(`${ISSUER}/userinfo`, { headers: { Authorization: `Bearer ${body.access_token}` } });
     expect(info.status).toBe(200);
     expect(await info.json()).toMatchObject({ sub: "google-hong@ajou.ac.kr", student: { id: "202600123" } });
   });
@@ -233,7 +234,7 @@ describe("로그인과 동의", () => {
 
 describe("화면", () => {
   it("Carbon 스타일 파일을 쓰고 인라인 스타일과 스크립트를 허용하지 않는다", async () => {
-    const res = await SELF.fetch(`${ISSUER}/nope`);
+    const res = await appFetch(`${ISSUER}/nope`);
     expect(res.status).toBe(404);
     expect(await res.text()).toContain('href="/assets/app.css"');
     const policy = res.headers.get("Content-Security-Policy")!;
@@ -244,7 +245,7 @@ describe("화면", () => {
 
   it("같은 출처 폼 POST에 Origin이 실리도록 Referrer-Policy는 same-origin이다", async () => {
     // no-referrer면 브라우저가 Origin: null을 보내 동의와 관리 화면의 모든 POST가 403이 된다.
-    const res = await SELF.fetch(`${ISSUER}/nope`);
+    const res = await appFetch(`${ISSUER}/nope`);
     expect(res.headers.get("Referrer-Policy")).toBe("same-origin");
   });
 });
@@ -286,30 +287,22 @@ describe("로그인 거절", () => {
 
 describe("설정", () => {
   it("운영 ISSUER에서 DEV_FAKE_LOGIN을 켜면 모든 요청이 500이다", async () => {
-    const fetch = workerWith({ ISSUER: "https://id.b-cube.kr", DEV_FAKE_LOGIN: "true" });
+    const fetch = appWith({ ISSUER: "https://id.b-cube.kr", DEV_FAKE_LOGIN: "true" });
     const res = await fetch(new Request("https://id.b-cube.kr/.well-known/openid-configuration"));
     expect(res.status).toBe(500);
   });
 
   it("개발용 가짜 로그인은 켰을 때만 등록된다", async () => {
-    expect((await SELF.fetch(`${ISSUER}/dev/login`, { method: "POST" })).status).toBe(404);
-    const fetch = workerWith({ DEV_FAKE_LOGIN: "true" });
+    expect((await appFetch(`${ISSUER}/dev/login`, { method: "POST" })).status).toBe(404);
+    const fetch = appWith({ DEV_FAKE_LOGIN: "true" });
     const { url } = await authorizeUrl();
     const res = await fetch(new Request(`${ISSUER}${url}`));
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("개발용 로그인");
   });
 
-  it("cron이 만료된 사용 기록을 지운다", async () => {
-    await env.DB.prepare(`INSERT INTO used_codes (jti, expires_at) VALUES ('old', 1), ('new', ?)`)
-      .bind(Date.now() + 60_000)
-      .run();
-    const { default: worker } = await import("../src/index");
-    const { createExecutionContext, createScheduledController, waitOnExecutionContext } = await import("cloudflare:test");
-    const ctx = createExecutionContext();
-    await worker.scheduled(createScheduledController(), env, ctx);
-    await waitOnExecutionContext(ctx);
-    const rows = await env.DB.prepare(`SELECT jti FROM used_codes WHERE jti IN ('old', 'new')`).all();
-    expect(rows.results.map((r) => r.jti)).toEqual(["new"]);
+  it("만료된 사용 기록은 TTL 인덱스가 지운다", async () => {
+    const indexes = await (await testDb()).usedCodes.indexes();
+    expect(indexes).toContainEqual(expect.objectContaining({ key: { expires_at: 1 }, expireAfterSeconds: 0 }));
   });
 });
