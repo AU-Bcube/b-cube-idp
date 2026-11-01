@@ -3,7 +3,8 @@
  * 패키지와 앱의 axios 인스턴스가 갈라지면 프록시 없이 직접 연결되므로, nock 대신 로컬 프록시 서버로 받아 본다.
  */
 import { createServer, type Server, type Socket } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import nock from "nock";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConfigError, parseConfig, type Config } from "../src/env";
 import { lookupStudent, StudentLookupError } from "../src/student";
 
@@ -71,6 +72,45 @@ describe("mhaksa 프록시", () => {
     const port = await socksProxy(targets);
     await expectUnavailable(configWith(`socks5h://127.0.0.1:${port}`));
     expect(targets).toEqual([MHAKSA_TARGET]);
+  });
+});
+
+describe("mhaksa 요청 로그", () => {
+  const FIND_USER = "/com/com/cmmn/user/findUser.action";
+
+  /** 조회를 한 번 하고 그동안 남은 로그를 한 줄씩 돌려준다. */
+  async function logsOf(config: Config): Promise<string[]> {
+    const lines: string[] = [];
+    const record = (...args: unknown[]) => void lines.push(args.join(" "));
+    const info = vi.spyOn(console, "info").mockImplementation(record);
+    const warn = vi.spyOn(console, "warn").mockImplementation(record);
+    await lookupStudent(config, "hong@ajou.ac.kr", ["student"]).catch(() => undefined);
+    info.mockRestore();
+    warn.mockRestore();
+    return lines;
+  }
+
+  afterEach(async () => {
+    nock.cleanAll();
+    await Promise.all(servers.splice(0).map((s) => new Promise((resolve) => s.close(resolve))));
+  });
+
+  it("응답을 받으면 기능 경로와 상태를 남기고 포털 ID는 남기지 않는다", async () => {
+    nock("https://mhaksa.ajou.ac.kr:30443").post("/nt/cvt.do").reply(200, { secret: "응답값" });
+    const lines = await logsOf(configWith(""));
+    expect(lines[0]).toBe(`[mhaksa] 요청 시작 ${FIND_USER} 직접 연결`);
+    expect(lines[1]).toMatch(new RegExp(`^\\[mhaksa\\] 요청 완료 ${FIND_USER} HTTP 200 \\d+ms$`));
+    expect(lines.join("\n")).not.toContain("hong");
+    expect(lines.join("\n")).not.toContain("응답값");
+  });
+
+  it("실패해도 남기고 프록시 계정은 남기지 않는다", async () => {
+    const port = await httpProxy([]);
+    const lines = await logsOf(configWith(`http://user:hunter2@127.0.0.1:${port}`));
+    expect(lines[0]).toBe(`[mhaksa] 요청 시작 ${FIND_USER} 프록시`);
+    expect(lines[1]).toMatch(new RegExp(`^\\[mhaksa\\] 요청 실패 ${FIND_USER} .+ \\d+ms$`));
+    expect(lines.join("\n")).not.toContain("hunter2");
+    expect(lines.join("\n")).not.toContain("hong");
   });
 });
 
