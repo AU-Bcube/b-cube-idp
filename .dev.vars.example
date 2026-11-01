@@ -12,6 +12,4 @@ ENCRYPTION_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-# 로컬 SP 등록. wrangler.jsonc의 CLIENTS를 덮어쓴다.
-# client_secret_sha256은 `pnpm client:secret`으로 만든다.
-CLIENTS=[{"client_id":"domain-console-dev","name":"B-Cube 도메인 콘솔 (로컬)","redirect_uris":["http://localhost:5173/auth/callback"],"scopes":["openid","email","profile","student","sohakoe"],"client_secret_sha256":""}]
+# 로컬 SP는 http://localhost:8787/admin 에서 만든다(DEV_FAKE_LOGIN=true이면 admin@ajou.ac.kr로 바로 들어간다).
