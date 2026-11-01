@@ -118,3 +118,10 @@ src/
 netlify/functions/idp.mts  Netlify Function. public/의 정적 파일이 없는 경로를 모두 받는다
 scripts/           키 생성, CSS 빌드
 ```
+
+## 라이선스
+
+Copyright (C) 2026 아주대학교 경영대학 소학회 비큐브(B-CUBE)  
+Copyright (C) 2026 B-CUBE, School of Business, Ajou University
+
+[GNU Affero General Public License v3.0](LICENSE) 이상(AGPL-3.0-or-later)으로 배포한다. 수정한 코드로 네트워크 서비스를 제공하면 그 서비스 이용자에게 수정한 소스 코드를 공개해야 한다.
