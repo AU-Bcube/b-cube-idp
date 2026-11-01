@@ -12,7 +12,10 @@ import {
   type JWK,
   type JWTPayload,
 } from "jose";
+import type { webcrypto } from "node:crypto";
 import { ConfigError, type Config } from "./env";
+
+type CryptoKey = webcrypto.CryptoKey;
 
 export const SIGNING_ALG = "ES256";
 
