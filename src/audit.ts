@@ -1,3 +1,5 @@
+import type { Collections } from "./db";
+
 /** 관리 작업과 동적 등록 기록. 사용자 로그인은 기록하지 않는다(사용자 정보를 저장하지 않는다). */
 export type AuditAction =
   | "client.create"
@@ -12,7 +14,7 @@ export type AuditAction =
   | "iat.revoke";
 
 export interface AuditLog {
-  id: number;
+  id: string;
   at: number;
   actor: string;
   action: AuditAction;
@@ -21,16 +23,26 @@ export interface AuditLog {
 }
 
 export async function writeAudit(
-  db: D1Database,
+  db: Collections,
   entry: { actor: string; action: AuditAction; target?: string; detail?: Record<string, unknown> },
 ): Promise<void> {
-  await db
-    .prepare(`INSERT INTO audit_logs (at, actor, action, target, detail) VALUES (?, ?, ?, ?, ?)`)
-    .bind(Date.now(), entry.actor, entry.action, entry.target ?? null, entry.detail ? JSON.stringify(entry.detail) : null)
-    .run();
+  await db.auditLogs.insertOne({
+    at: Date.now(),
+    actor: entry.actor,
+    action: entry.action,
+    target: entry.target ?? null,
+    detail: entry.detail ?? null,
+  });
 }
 
-export async function recentAudit(db: D1Database, limit = 200): Promise<AuditLog[]> {
-  const { results } = await db.prepare(`SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?`).bind(limit).all<AuditLog>();
-  return results;
+export async function recentAudit(db: Collections, limit = 200): Promise<AuditLog[]> {
+  const docs = await db.auditLogs.find().sort({ at: -1, _id: -1 }).limit(limit).toArray();
+  return docs.map((d) => ({
+    id: d._id.toHexString(),
+    at: d.at,
+    actor: d.actor,
+    action: d.action as AuditAction,
+    target: d.target,
+    detail: d.detail ? JSON.stringify(d.detail) : null,
+  }));
 }

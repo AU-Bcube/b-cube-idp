@@ -6,6 +6,7 @@
 import { Hono, type Context } from "hono";
 import { findClient, type Client } from "../clients";
 import { randomToken, sha256Base64url, sha256Hex, timingSafeEqual } from "../crypto";
+import { isDuplicateKey } from "../db";
 import type { Config } from "../env";
 import { publicJwks, seal, SIGNING_ALG, signIdToken, unseal } from "../keys";
 import { errorPage, startGoogleLogin } from "../respond";
@@ -220,10 +221,13 @@ export const oidcRoutes = new Hono<HonoEnv>()
     }
 
     // 코드는 한 번만 쓴다. 검증을 모두 통과한 뒤에 사용 처리해 잘못된 요청이 정상 코드를 소모하지 않게 한다.
-    const used = await c.env.DB.prepare(`INSERT INTO used_codes (jti, expires_at) VALUES (?, ?) ON CONFLICT DO NOTHING`)
-      .bind(code.jti, Number(code.exp) * 1000)
-      .run();
-    if (used.meta.changes !== 1) return tokenError(c, 400, "invalid_grant", "code already used");
+    // _id가 jti라서 같은 코드를 두 번 넣으면 고유 키 충돌이 난다. 동시에 들어온 요청도 하나만 통과한다.
+    try {
+      await c.env.DB.usedCodes.insertOne({ _id: code.jti, expires_at: new Date(Number(code.exp) * 1000) });
+    } catch (err) {
+      if (isDuplicateKey(err)) return tokenError(c, 400, "invalid_grant", "code already used");
+      throw err;
+    }
 
     const idToken = await signIdToken(
       config,

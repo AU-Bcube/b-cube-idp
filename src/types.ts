@@ -1,10 +1,13 @@
 import type { AdminSession } from "./admin-session";
+import type { Collections } from "./db";
 import type { Config } from "./env";
 import type { Scope } from "./scopes";
 import type { MhaksaClaims } from "./student";
 
 export interface HonoEnv {
-  Bindings: Env;
+  Bindings: {
+    DB: Collections;
+  };
   Variables: {
     config: Config;
     /** /admin/* 에서만 설정된다. */
