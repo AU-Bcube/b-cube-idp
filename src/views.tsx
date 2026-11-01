@@ -138,8 +138,9 @@ export const ConsentPage: FC<{
   redirectOrigin: string;
   user: AuthenticatedUser;
   scopes: Scope[];
+  flowId: string;
   csrf: string;
-}> = ({ clientName, reviewed, redirectOrigin, user, scopes, csrf }) => {
+}> = ({ clientName, reviewed, redirectOrigin, user, scopes, flowId, csrf }) => {
   const shared = scopes.filter((s): s is Exclude<Scope, "openid"> => s !== "openid");
   return (
     <Layout title={`${clientName} 정보 제공 동의`}>
@@ -169,6 +170,7 @@ export const ConsentPage: FC<{
         동의하면 <strong>{redirectOrigin}</strong>(으)로 이동합니다.
       </p>
       <form method="post" action="/consent">
+        <input type="hidden" name="flow" value={flowId} />
         <input type="hidden" name="csrf" value={csrf} />
         <div class="idp-actions">
           <button type="submit" name="decision" value="deny" class="cds--btn cds--btn--lg cds--layout--size-lg cds--btn--secondary">

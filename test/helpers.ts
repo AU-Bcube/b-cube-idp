@@ -229,12 +229,24 @@ export function csrfFrom(html: string): string {
   return m[1]!;
 }
 
+/** 동의 화면 폼의 흐름 id와 CSRF 토큰 */
+export function consentForm(html: string): { flow: string; csrf: string } {
+  const m = /name="flow" value="([^"]+)"/.exec(html);
+  if (!m) throw new Error("흐름 id가 없음");
+  return { flow: m[1]!, csrf: csrfFrom(html) };
+}
+
+/** 콜백 응답이 동의 화면으로 보내는지 */
+export function isConsentRedirect(res: Response): boolean {
+  return /^\/consent\?flow=[\w-]+$/.test(res.headers.get("Location") ?? "");
+}
+
 /** 동의 화면에서 동의하고 SP로 돌아온 리다이렉트 주소를 돌려준다. */
 export async function loginAndConsent(browser: Browser, email: string, opts: AuthorizeOptions = {}) {
   const { res, verifier } = await loginUntilConsent(browser, email, opts);
-  if (res.headers.get("Location") !== "/consent") throw new Error(`동의 화면으로 가지 않음: ${res.status}`);
-  const page = await browser.fetch("/consent");
-  const done = await browser.postForm("/consent", { csrf: csrfFrom(await page.text()), decision: "allow" });
+  if (!isConsentRedirect(res)) throw new Error(`동의 화면으로 가지 않음: ${res.status}`);
+  const page = await browser.fetch(res.headers.get("Location")!);
+  const done = await browser.postForm("/consent", { ...consentForm(await page.text()), decision: "allow" });
   return { location: new URL(done.headers.get("Location")!), verifier };
 }
 

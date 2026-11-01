@@ -1,5 +1,6 @@
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from "jose";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { MAX_FLOWS } from "../src/flow";
 import {
   appFetch,
   appWith,
@@ -8,10 +9,11 @@ import {
   Browser,
   CLIENT_ID,
   CLIENT_SECRET,
-  csrfFrom,
+  consentForm,
   google,
   googleUser,
   installFakes,
+  isConsentRedirect,
   ISSUER,
   loginAndConsent,
   loginUntilConsent,
@@ -112,9 +114,9 @@ describe("로그인과 동의", () => {
     mhaksa.users.set("hong", "202600123");
     const browser = new Browser();
     const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
-    expect(res.headers.get("Location")).toBe("/consent");
+    expect(isConsentRedirect(res)).toBe(true);
 
-    const page = await browser.fetch("/consent");
+    const page = await browser.fetch(res.headers.get("Location")!);
     const html = await page.text();
     expect(html).toContain("테스트 SP");
     expect(html).toContain("202600123");
@@ -207,9 +209,9 @@ describe("로그인과 동의", () => {
   it("거부하면 access_denied로 돌려보내고 코드를 주지 않는다", async () => {
     mhaksa.users.set("hong", "202600123");
     const browser = new Browser();
-    await loginUntilConsent(browser, "hong@ajou.ac.kr");
-    const page = await browser.fetch("/consent");
-    const res = await browser.postForm("/consent", { csrf: csrfFrom(await page.text()), decision: "deny" });
+    const { res: callback } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
+    const page = await browser.fetch(callback.headers.get("Location")!);
+    const res = await browser.postForm("/consent", { ...consentForm(await page.text()), decision: "deny" });
     const location = new URL(res.headers.get("Location")!);
     expect(location.searchParams.get("error")).toBe("access_denied");
     expect(location.searchParams.has("code")).toBe(false);
@@ -218,10 +220,10 @@ describe("로그인과 동의", () => {
   it("CSRF 토큰이 틀리거나 다른 출처에서 보낸 동의는 거절한다", async () => {
     mhaksa.users.set("hong", "202600123");
     const browser = new Browser();
-    await loginUntilConsent(browser, "hong@ajou.ac.kr");
-    const csrf = csrfFrom(await (await browser.fetch("/consent")).text());
-    expect((await browser.postForm("/consent", { csrf: "wrong", decision: "allow" })).status).toBe(400);
-    const cross = await browser.postForm("/consent", { csrf, decision: "allow" }, { Origin: "https://evil.example.com" });
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
+    const form = consentForm(await (await browser.fetch(res.headers.get("Location")!)).text());
+    expect((await browser.postForm("/consent", { ...form, csrf: "wrong", decision: "allow" })).status).toBe(400);
+    const cross = await browser.postForm("/consent", { ...form, decision: "allow" }, { Origin: "https://evil.example.com" });
     expect(cross.status).toBe(403);
   });
 
@@ -229,6 +231,66 @@ describe("로그인과 동의", () => {
     const { location } = await loginAndConsent(new Browser(), "staff@ajou.ac.kr", { scope: "openid email" });
     expect(location.searchParams.has("code")).toBe(true);
     expect(mhaksa.calls).toEqual([]);
+  });
+});
+
+describe("여러 탭", () => {
+  it("한 브라우저에서 두 로그인을 동시에 진행해도 각자 끝난다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    const browser = new Browser();
+    google.claims = googleUser("hong@ajou.ac.kr");
+    const tabA = await authorizeUrl({ scope: "openid email", extra: { state: "tab-a" } });
+    const tabB = await authorizeUrl({
+      clientId: "email-only",
+      redirectUri: "https://other.example.com/cb",
+      scope: "openid email",
+      extra: { state: "tab-b" },
+    });
+    const googleA = new URL((await browser.fetch(tabA.url)).headers.get("Location")!);
+    const googleB = new URL((await browser.fetch(tabB.url)).headers.get("Location")!);
+    expect(browser.cookies.size).toBe(2);
+
+    // A를 시작한 뒤 B를 시작했어도 A의 콜백과 동의가 B에 섞이지 않는다.
+    const callback = (u: URL) =>
+      browser.fetch(`/callback/google?state=${u.searchParams.get("state")}&code=${u.searchParams.get("nonce")}`);
+    const consentA = await callback(googleA);
+    const consentB = await callback(googleB);
+    const pageA = await (await browser.fetch(consentA.headers.get("Location")!)).text();
+    const pageB = await (await browser.fetch(consentB.headers.get("Location")!)).text();
+    expect(pageA).toContain("테스트 SP");
+    expect(pageB).toContain("이메일만");
+
+    const doneB = new URL((await browser.postForm("/consent", { ...consentForm(pageB), decision: "allow" })).headers.get("Location")!);
+    const doneA = new URL((await browser.postForm("/consent", { ...consentForm(pageA), decision: "allow" })).headers.get("Location")!);
+    expect(doneA.origin + doneA.pathname).toBe(REDIRECT_URI);
+    expect(doneA.searchParams.get("state")).toBe("tab-a");
+    expect(doneB.origin).toBe("https://other.example.com");
+    expect(doneB.searchParams.get("state")).toBe("tab-b");
+    expect((await redeem(doneA, tabA.verifier)).status).toBe(200);
+    expect(browser.cookies.size).toBe(0);
+  });
+
+  it(`흐름 쿠키는 ${MAX_FLOWS}개까지만 두고 오래된 것부터 지운다`, async () => {
+    const browser = new Browser();
+    const states: string[] = [];
+    for (let i = 0; i < MAX_FLOWS + 2; i++) {
+      const { url } = await authorizeUrl();
+      states.push(new URL((await browser.fetch(url)).headers.get("Location")!).searchParams.get("state")!);
+      // 흐름 id는 밀리초 시각으로 정렬한다.
+      await new Promise((r) => setTimeout(r, 2));
+    }
+    expect(browser.cookies.size).toBe(MAX_FLOWS);
+    const names = [...browser.cookies.keys()];
+    for (const state of states.slice(-MAX_FLOWS)) expect(names).toContain(`idp_flow_${state.split(".")[0]}`);
+  });
+
+  it("흐름 id가 없거나 다른 동의 폼은 거절한다", async () => {
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", { scope: "openid email" });
+    const form = consentForm(await (await browser.fetch(res.headers.get("Location")!)).text());
+    expect((await browser.fetch("/consent")).status).toBe(400);
+    expect((await browser.postForm("/consent", { csrf: form.csrf, decision: "allow" })).status).toBe(400);
+    expect((await browser.postForm("/consent", { ...form, flow: "0-AAAAAAAAAAAAAAAA", decision: "allow" })).status).toBe(400);
   });
 });
 
