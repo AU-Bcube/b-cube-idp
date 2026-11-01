@@ -25,6 +25,8 @@ export interface AuthRequest {
   state: string;
   nonce?: string | undefined;
   code_challenge: string;
+  /** prompt=consent: 기억한 동의가 있어도 동의 화면을 띄운다. */
+  prompt_consent?: true | undefined;
 }
 
 /** 인증을 마치고 동의를 기다리는 사용자. 저장하지 않고 암호화한 흐름 쿠키에만 담는다. */

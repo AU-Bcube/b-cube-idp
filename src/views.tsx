@@ -131,6 +131,11 @@ function scopeValue(scope: Exclude<Scope, "openid">, user: AuthenticatedUser): C
   }
 }
 
+/** 한국 시간 날짜 (YYYY-MM-DD) */
+function kstDate(ms: number): string {
+  return new Date(ms + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
 export const ConsentPage: FC<{
   clientName: string;
   /** 관리자가 검토한 SP인지 */
@@ -140,13 +145,15 @@ export const ConsentPage: FC<{
   scopes: Scope[];
   flowId: string;
   csrf: string;
-}> = ({ clientName, reviewed, redirectOrigin, user, scopes, flowId, csrf }) => {
+  /** 지금 동의하면 동의를 기억하는 기한 */
+  consentExpiresAt: number;
+}> = ({ clientName, reviewed, redirectOrigin, user, scopes, flowId, csrf, consentExpiresAt }) => {
   const shared = scopes.filter((s): s is Exclude<Scope, "openid"> => s !== "openid");
   return (
     <Layout title={`${clientName} 정보 제공 동의`}>
       <h1 class="idp-title">{clientName}에 로그인</h1>
       <p class="idp-body">
-        <strong>{clientName}</strong>이(가) 아래 정보를 요청합니다. 동의하면 이번 로그인에 한해 이 정보를 전달합니다.
+        <strong>{clientName}</strong>이(가) 아래 정보를 요청합니다. 동의하면 이 정보를 전달합니다.
       </p>
       {reviewed ? null : (
         <Notice kind="warning" title="검토하지 않은 서비스">
@@ -167,7 +174,8 @@ export const ConsentPage: FC<{
         <p class="idp-body">로그인 여부 외에 전달하는 정보는 없습니다.</p>
       )}
       <p class="idp-redirect">
-        동의하면 <strong>{redirectOrigin}</strong>(으)로 이동합니다.
+        동의하면 <strong>{redirectOrigin}</strong>(으)로 이동합니다. 동의는 <strong>{kstDate(consentExpiresAt)}</strong>
+        까지 1년간 저장되며, 그동안 이 서비스에 로그인할 때는 다시 묻지 않습니다.
       </p>
       <form method="post" action="/consent">
         <input type="hidden" name="flow" value={flowId} />
@@ -181,7 +189,7 @@ export const ConsentPage: FC<{
           </button>
         </div>
       </form>
-      <p class="idp-note">B-CUBE 통합 로그인은 비밀번호와 학생 정보를 저장하지 않습니다.</p>
+      <p class="idp-note">B-CUBE 통합 로그인은 비밀번호와 학생 정보를 저장하지 않습니다. 어느 서비스에 어떤 항목을 동의했는지만 저장합니다.</p>
     </Layout>
   );
 };

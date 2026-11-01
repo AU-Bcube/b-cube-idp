@@ -1,5 +1,6 @@
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from "jose";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { CONSENT_TTL_MS } from "../src/consents";
 import { MAX_FLOWS } from "../src/flow";
 import {
   appFetch,
@@ -234,6 +235,78 @@ describe("로그인과 동의", () => {
   });
 });
 
+describe("동의 기억", () => {
+  const consentDoc = async (clientId = CLIENT_ID) =>
+    (await testDb()).consents.findOne({ sub: "google-hong@ajou.ac.kr", client_id: clientId });
+
+  it("동의 화면에 1년 뒤 기한을 보여주고, 동의하면 1년간 저장한다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
+    const html = await (await browser.fetch(res.headers.get("Location")!)).text();
+    const expires = new Date(Date.now() + CONSENT_TTL_MS + 9 * 3600_000).toISOString().slice(0, 10);
+    expect(html).toContain(expires);
+    expect(html).toContain("1년간 저장");
+    expect(html).not.toContain("이번 로그인에 한해");
+
+    await browser.postForm("/consent", { ...consentForm(html), decision: "allow" });
+    const doc = await consentDoc();
+    expect(doc!.scopes).toEqual(["openid", "email", "profile", "student"]);
+    expect(doc!.expires_at.getTime() - doc!.granted_at).toBe(CONSENT_TTL_MS);
+  });
+
+  it("동의한 SP에 같거나 좁은 scope로 다시 로그인하면 동의 화면 없이 코드를 준다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr");
+
+    const browser = new Browser();
+    const { res, verifier } = await loginUntilConsent(browser, "hong@ajou.ac.kr", { scope: "openid email student" });
+    const location = new URL(res.headers.get("Location")!);
+    expect(location.origin + location.pathname).toBe(REDIRECT_URI);
+    expect(browser.cookies.size).toBe(0);
+    const token = await redeem(location, verifier);
+    expect(token.status).toBe(200);
+    // 학생 정보는 저장하지 않고 로그인할 때마다 다시 조회한다.
+    const { id_token } = (await token.json()) as { id_token: string };
+    expect((await verifyIdToken(id_token)).payload).toMatchObject({ student: { id: "202600123" } });
+  });
+
+  it("더 넓은 scope를 요청하거나 다른 SP면 다시 묻는다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+
+    const wider = await loginUntilConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email student" });
+    expect(isConsentRedirect(wider.res)).toBe(true);
+    const other = await loginUntilConsent(new Browser(), "hong@ajou.ac.kr", {
+      clientId: "email-only",
+      redirectUri: "https://other.example.com/cb",
+      scope: "openid email",
+    });
+    expect(isConsentRedirect(other.res)).toBe(true);
+  });
+
+  it("만료된 동의는 쓰지 않는다", async () => {
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+    // TTL 인덱스가 지우기 전이라도 만료된 동의는 쓰지 않는다.
+    await (await testDb()).consents.updateMany({}, { $set: { expires_at: new Date(Date.now() - 1) } });
+    const { res } = await loginUntilConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+    expect(isConsentRedirect(res)).toBe(true);
+  });
+
+  it("prompt=consent면 다시 묻고, 거부하면 기억한 동의를 지운다", async () => {
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", {
+      scope: "openid email",
+      extra: { prompt: "login consent" },
+    });
+    expect(isConsentRedirect(res)).toBe(true);
+    const page = await browser.fetch(res.headers.get("Location")!);
+    await browser.postForm("/consent", { ...consentForm(await page.text()), decision: "deny" });
+    expect(await consentDoc()).toBeNull();
+  });
+});
+
 describe("여러 탭", () => {
   it("한 브라우저에서 두 로그인을 동시에 진행해도 각자 끝난다", async () => {
     mhaksa.users.set("hong", "202600123");
@@ -363,8 +436,9 @@ describe("설정", () => {
     expect(await res.text()).toContain("개발용 로그인");
   });
 
-  it("만료된 사용 기록은 TTL 인덱스가 지운다", async () => {
-    const indexes = await (await testDb()).usedCodes.indexes();
-    expect(indexes).toContainEqual(expect.objectContaining({ key: { expires_at: 1 }, expireAfterSeconds: 0 }));
+  it("만료된 사용 기록과 동의는 TTL 인덱스가 지운다", async () => {
+    const db = await testDb();
+    expect(await db.usedCodes.indexes()).toContainEqual(expect.objectContaining({ key: { expires_at: 1 }, expireAfterSeconds: 0 }));
+    expect(await db.consents.indexes()).toContainEqual(expect.objectContaining({ key: { expires_at: 1 }, expireAfterSeconds: 0 }));
   });
 });

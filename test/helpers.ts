@@ -143,7 +143,9 @@ export async function installFakes(): Promise<void> {
     });
 }
 
-export function resetFakes(): void {
+export async function resetFakes(): Promise<void> {
+  // 기억한 동의가 다음 테스트의 동의 화면을 건너뛰게 하지 않도록 지운다.
+  await (await testDb()).consents.deleteMany({});
   google.claims = null;
   mhaksa.users = new Map();
   mhaksa.schEmail = new Map();

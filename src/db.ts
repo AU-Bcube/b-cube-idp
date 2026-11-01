@@ -3,7 +3,7 @@
  *
  * - 서버리스 함수 인스턴스가 살아 있는 동안 연결을 재사용한다.
  * - 인덱스는 연결할 때 만든다. 이미 있으면 아무 일도 하지 않으므로 별도 마이그레이션이 없다.
- * - 사용자 정보와 학생 정보는 저장하지 않는다. SP 등록 정보, 등록 토큰 해시, 감사 로그, 사용한 인가 코드 ID만 남는다.
+ * - 사용자 정보와 학생 정보는 저장하지 않는다. SP 등록 정보, 등록 토큰 해시, 감사 로그, 사용한 인가 코드 ID, 동의 기록만 남는다.
  */
 import { MongoClient, MongoServerError, type Collection, type Db } from "mongodb";
 import type { ClientStatus, TokenAuthMethod } from "./clients";
@@ -60,11 +60,26 @@ export interface UsedCodeDoc {
   expires_at: Date;
 }
 
+/**
+ * 사용자가 SP에 동의한 scope. 동의한 날부터 1년 동안 같은 SP의 로그인에서 동의 화면을 생략한다.
+ * 학생 정보 값은 저장하지 않는다. 로그인할 때마다 다시 조회한다.
+ */
+export interface ConsentDoc {
+  /** Google sub */
+  sub: string;
+  client_id: string;
+  scopes: string[];
+  granted_at: number;
+  /** TTL 인덱스가 이 시각이 지난 문서를 지운다. */
+  expires_at: Date;
+}
+
 export interface Collections {
   clients: Collection<ClientDoc>;
   initialAccessTokens: Collection<InitialAccessTokenDoc>;
   auditLogs: Collection<AuditLogDoc>;
   usedCodes: Collection<UsedCodeDoc>;
+  consents: Collection<ConsentDoc>;
 }
 
 export function collections(db: Db): Collections {
@@ -73,6 +88,7 @@ export function collections(db: Db): Collections {
     initialAccessTokens: db.collection<InitialAccessTokenDoc>("initial_access_tokens"),
     auditLogs: db.collection<AuditLogDoc>("audit_logs"),
     usedCodes: db.collection<UsedCodeDoc>("used_codes"),
+    consents: db.collection<ConsentDoc>("consents"),
   };
 }
 
@@ -83,6 +99,9 @@ async function ensureIndexes(db: Db): Promise<void> {
     c.auditLogs.createIndex({ at: -1 }),
     // 만료된 코드는 어차피 복호화 단계에서 거절되므로 기록을 지워도 된다.
     c.usedCodes.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
+    c.consents.createIndex({ sub: 1, client_id: 1 }, { unique: true }),
+    // 만료된 동의는 조회에서 빠지므로 지워도 된다.
+    c.consents.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
   ]);
 }
 

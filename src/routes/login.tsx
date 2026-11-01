@@ -6,6 +6,7 @@
 import { Hono, type Context } from "hono";
 import { createAdminSession } from "../admin-session";
 import { findClient } from "../clients";
+import { CONSENT_TTL_MS, consentCovers, deleteConsent, findConsent, saveConsent } from "../consents";
 import { randomToken, timingSafeEqual } from "../crypto";
 import { clearFlow, flowIdFromState, isFlowId, loadFlow, saveFlow } from "../flow";
 import {
@@ -63,11 +64,18 @@ async function completeAuthentication(c: Context<HonoEnv>, flowId: string, flow:
       return errorPage(c, err.reason === "unavailable" ? 502 : 403, "학생 정보 확인 실패", LOOKUP_MESSAGES[err.reason]);
     }
   }
-  await saveFlow(c, flowId, {
-    req,
-    user: { ...identity, auth_time: Math.floor(Date.now() / 1000), mhaksa },
-    csrf: randomToken(32),
-  });
+  const user = { ...identity, auth_time: Math.floor(Date.now() / 1000), mhaksa };
+
+  // 1년 안에 같은 scope 이상으로 동의했으면 동의 화면을 생략한다. prompt=consent면 다시 묻는다.
+  if (!req.prompt_consent && consentCovers(await findConsent(c.env.DB, user.sub, req.client_id), req.scopes)) {
+    clearFlow(c, flowId);
+    const client = await findClient(c.env.DB, req.client_id);
+    if (client?.status !== "active") {
+      return redirectToClient(c, req, { error: "unauthorized_client", error_description: "client is not active" });
+    }
+    return redirectToClient(c, req, { code: await issueCode(config, req, user) });
+  }
+  await saveFlow(c, flowId, { req, user, csrf: randomToken(32) });
   return c.redirect(`/consent?flow=${flowId}`, 302);
 }
 
@@ -132,6 +140,7 @@ export const loginRoutes = new Hono<HonoEnv>()
         scopes={flow.req.scopes}
         flowId={flowId}
         csrf={flow.csrf}
+        consentExpiresAt={Date.now() + CONSENT_TTL_MS}
       />,
     );
   })
@@ -147,6 +156,8 @@ export const loginRoutes = new Hono<HonoEnv>()
     // 흐름 쿠키는 한 번만 쓴다.
     clearFlow(c, flowId);
     if (body.decision !== "allow") {
+      // 거부하면 기억한 동의도 지운다. SP가 prompt=consent로 보내면 사용자가 동의를 철회할 수 있다.
+      await deleteConsent(c.env.DB, flow.user.sub, flow.req.client_id);
       return redirectToClient(c, flow.req, { error: "access_denied", error_description: "user denied consent" });
     }
     // 동의 화면을 띄운 사이에 SP가 정지되었을 수 있다.
@@ -154,6 +165,7 @@ export const loginRoutes = new Hono<HonoEnv>()
     if (client?.status !== "active") {
       return redirectToClient(c, flow.req, { error: "unauthorized_client", error_description: "client is not active" });
     }
+    await saveConsent(c.env.DB, flow.user.sub, flow.req.client_id, flow.req.scopes);
     const code = await issueCode(c.var.config, flow.req, flow.user);
     return redirectToClient(c, flow.req, { code });
   });
