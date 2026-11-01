@@ -27,6 +27,8 @@ export interface Config {
   dbName: string;
   /** 소스 코드 공개 주소(AGPL-3.0-or-later). 안내 페이지에 링크한다. 비어 있으면 링크를 숨긴다. */
   sourceUrl: string;
+  /** mhaksa 요청을 보낼 프록시 주소(http, https, socks). 비어 있으면 직접 연결한다. 계정이 들어갈 수 있어 로그에 남기지 않는다. */
+  mhaksaProxyUrl: string;
 }
 
 /** 개발 모드 + DEV_FAKE_LOGIN에서 ADMIN_EMAILS에 자동으로 들어가는 계정 */
@@ -37,6 +39,12 @@ export class ConfigError extends Error {
 }
 
 const LOCALHOST_ORIGIN = /^http:\/\/localhost(?::\d{1,5})?$/;
+const PROXY_PROTOCOLS = new Set(["http:", "https:", "socks:", "socks4:", "socks4a:", "socks5:", "socks5h:"]);
+
+function isProxyUrl(value: string): boolean {
+  const url = URL.parse(value);
+  return url !== null && PROXY_PROTOCOLS.has(url.protocol) && url.hostname !== "";
+}
 
 function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -87,6 +95,12 @@ export function parseConfig(raw: RawEnv): Config {
   const sourceUrl = str(raw.SOURCE_URL);
   if (sourceUrl && !/^https:\/\/\S+$/.test(sourceUrl)) errors.push("SOURCE_URL은 https:// 주소여야 합니다");
 
+  const mhaksaProxyUrl = str(raw.MHAKSA_PROXY_URL);
+  // 프록시 계정이 들어갈 수 있으므로 오류 메시지에 값을 넣지 않는다.
+  if (mhaksaProxyUrl && !isProxyUrl(mhaksaProxyUrl)) {
+    errors.push("MHAKSA_PROXY_URL은 http, https, socks, socks4, socks4a, socks5, socks5h 주소여야 합니다");
+  }
+
   const adminEmails = new Set(
     str(raw.ADMIN_EMAILS)
       .split(",")
@@ -112,6 +126,7 @@ export function parseConfig(raw: RawEnv): Config {
     dbConnectionString,
     dbName,
     sourceUrl,
+    mhaksaProxyUrl,
   };
 }
 
