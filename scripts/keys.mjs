@@ -1,5 +1,5 @@
 // SIGNING_KEY(ES256 개인 JWK)와 ENCRYPTION_SECRET을 새로 만들어 출력한다.
-// 출력값은 비밀이다. `wrangler secret put`이나 .dev.vars에만 넣고 커밋하지 않는다.
+// 출력값은 비밀이다. Netlify 환경 변수나 .env에만 넣고 커밋하지 않는다.
 import { webcrypto as crypto } from "node:crypto";
 
 const { privateKey } = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"]);
