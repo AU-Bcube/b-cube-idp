@@ -20,6 +20,7 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
   ```sh
   git config --global url."git@github.com:".insteadOf "https://github.com/"
   ```
+- [ ] pnpm 12.16.1을 쓴다(`pnpm --version`). lockfile 형식이 pnpm 버전에 묶여 있어 다른 메이저 버전은 lockfile을 읽지 못하거나 다시 쓴다.
 - [ ] `pnpm install`
 - [ ] `cp .env.example .env` 후 개발용 MongoDB의 `DB_CONNECTION_STRING`, `DB_NAME`과 `pnpm keys` 출력의 두 줄(`SIGNING_KEY`, `ENCRYPTION_SECRET`)을 넣는다.
   운영 DB를 로컬에서 쓰지 않는다. DB 이름만 달라도 된다.
@@ -48,6 +49,8 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
 ## 4. Netlify 배포
 
 - [ ] Netlify에서 이 저장소를 연결해 사이트를 만든다. 빌드 설정은 [netlify.toml](../netlify.toml)을 따른다(빌드 `pnpm build:css`, 배포 폴더 `public`, 함수 `netlify/functions`).
+  pnpm 버전도 `netlify.toml`의 `PNPM_VERSION`(12.16.1)으로 고정한다. 빠지면 Netlify 기본 pnpm 10이 설치 단계에서
+  `ERR_PNPM_BROKEN_LOCKFILE`(문서가 둘인 lockfile)이나 `ERR_PNPM_INVALID_VERSION_UNION`(`allowBuilds`의 git 의존성 키)으로 실패한다.
 - [ ] private 의존성 `ajou-internal-id-federation`을 설치할 수 있게 한다. 빌드가 의존성을 먼저 설치하므로 빌드 명령으로는 해결할 수 없다.
   1. GitHub fine-grained PAT를 만든다. Resource owner `AU-Bcube`, 저장소는 `ajou-internal-id-federation`만, 권한은 Contents read-only.
   2. Netlify 사이트 환경 변수에 아래 세 개를 넣는다. 범위(scope)는 **Builds**만, 토큰이 든 값은 secret으로 표시한다.
@@ -176,6 +179,7 @@ https://id.b-cube.kr 첫 화면(안내 페이지)의 버튼과 동의 화면 하
   pnpm add git+ssh://git@github.com/AU-Bcube/ajou-internal-id-federation.git#<새 커밋 해시>
   ```
   허용 키가 틀리면 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`가 나오고, 메시지에 정확한 키가 있다.
+- [ ] **pnpm 버전 올리기**: 로컬 pnpm을 올려 lockfile을 다시 만들면 `netlify.toml`의 `PNPM_VERSION`도 같은 버전으로 바꾼다.
 - [ ] **`ERR_PNPM_IGNORED_BUILDS`가 나오면**: 메시지에 나온 패키지의 install 스크립트를 확인하고 `pnpm-workspace.yaml`의 `allowBuilds`에 `true`/`false`로 적는다.
   `@carbon/*`, `@ibm/plex*`의 postinstall은 IBM 텔레메트리 전송(`ibmtelemetry`)뿐이라 `false`로 두었다. Carbon을 올려 패키지가 늘면 같은 방식으로 더한다.
 - [ ] **서명 키 교체**(유출이 의심될 때): `pnpm keys`로 새 `SIGNING_KEY`를 만들어 Netlify 환경 변수를 바꾸고 다시 배포한다.
