@@ -1,9 +1,9 @@
-[![Netlify Status](https://api.netlify.com/api/v1/badges/ec7d438c-aa8f-4435-bcfe-08d0e3eec963/deploy-status)](https://app.netlify.com/projects/b-cube-idp/deploys)
+![Netlify Status](https://api.netlify.com/api/v1/badges/ec7d438c-aa8f-4435-bcfe-08d0e3eec963/deploy-status)
 
 # B-CUBE-IDP
 
-<img src="assets/b-cube-idp-ko-logo.png" height="84" style="margin-right: 32;">
-<img src="assets/b-cube-idp-en-logo.png" height="84">
+<img src="assets/idp-ko-logo.png" height="84" style="margin-right: 32;">
+<img src="assets/idp-en-logo.png" height="84">
 
 B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Netlify Functions(Node)에서 동작하고 MongoDB에 저장한다.
 
@@ -167,4 +167,4 @@ Copyright (C) 2026 아주대학교 경영대학 소학회 비큐브(B-CUBE)
 Copyright (C) 2026 B-CUBE, School of Business, Ajou University
 
 [GNU Affero General Public License v3.0](LICENSE) 이상(AGPL-3.0-or-later)으로 배포한다. 수정한 코드로 네트워크 서비스를 제공하면 그 서비스 이용자에게 수정한 소스 코드를 공개해야 한다.
-안내 페이지(`/`)에 소스 코드 링크가 있다([src/views.tsx](src/views.tsx)의 `SOURCE_URL`). 포크해서 운영하면 이 주소를 자기 저장소로 바꾼다.
+안내 페이지(`/`)에 소스 코드 링크가 있다. 주소는 환경 변수 `SOURCE_URL`로 넣는다. 포크해서 운영하면 자기 저장소 주소를 넣는다.

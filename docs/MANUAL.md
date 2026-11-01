@@ -71,7 +71,11 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
   | `ENCRYPTION_SECRET` | `pnpm keys` 출력 (secret) |
   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 2단계의 값 (secret) |
   | `ADMIN_EMAILS` | 관리자 학교 이메일, 쉼표 구분 |
+  | `SOURCE_URL` | 이 저장소의 GitHub 주소. 안내 페이지의 소스 코드 링크(AGPL)로 쓴다. 비우면 링크가 사라지므로 꼭 넣는다 |
   | `ALLOWED_EMAIL_DOMAIN` | 선택. 기본값 `ajou.ac.kr` |
+- [ ] Netlify 비밀값 스캔은 secret 값을 저장소와 빌드 결과에서 찾고, 있으면 빌드를 막는다. 운영 `DB_NAME`은 secret이고 값이 프로젝트 이름과 같다.
+  그래서 코드, 문서, 파일 이름에 프로젝트 이름을 소문자 하이픈 표기로 쓰지 않는다(대소문자를 구분하므로 `B-CUBE IdP` 같은 표기는 괜찮다).
+  저장소 주소도 그 이름을 담고 있어 코드에 적지 않고 `SOURCE_URL` 환경 변수로 넣는다. 스캔에 걸리면 걸린 곳의 표기를 바꾼다. `SECRETS_SCAN_OMIT_KEYS`로 `DB_NAME`을 빼지 않는다.
 - [ ] Domain management에서 `id.b-cube.kr`을 custom domain으로 추가하고, `b-cube.kr` DNS에 Netlify가 안내하는 CNAME을 만든다. HTTPS 인증서는 Netlify가 발급한다.
 - [ ] 배포한 뒤 https://id.b-cube.kr/health 와 https://id.b-cube.kr/.well-known/openid-configuration 을 확인한다.
   https://id.b-cube.kr 에 안내 페이지가 나오고, https://id.b-cube.kr/consents 가 Google 로그인으로 넘어가는지도 확인한다.
@@ -187,6 +191,7 @@ https://id.b-cube.kr 첫 화면(안내 페이지)의 버튼과 동의 화면 하
   토큰 수명이 5분이고 SP는 id_token을 받자마자 검증하므로, 교체 순간 진행 중이던 로그인 몇 건만 실패한다.
   SP는 새 `kid`를 만나면 JWKS를 다시 받아야 한다. 교체 전에 SP 담당자에게 알린다.
 - [ ] **GitHub PAT 교체**: 4단계의 `GIT_CONFIG_KEY_0`에 든 PAT가 만료되기 전에 새 PAT로 바꾼다. 만료되면 빌드가 의존성 설치에서 실패한다.
+- [ ] **HKDF salt는 바꾸지 않는다**: `src/keys.ts`의 salt를 바꾸면 `ENCRYPTION_SECRET`을 바꾼 것과 같다. 진행 중인 로그인과 세션, 발급된 토큰이 무효가 된다.
 - [ ] **암호화 키 교체**: `ENCRYPTION_SECRET`을 바꾸면 진행 중인 로그인(최대 10분), 발급된 access_token(최대 5분),
   관리 화면 세션, 내 동의 관리 세션(최대 30분)이 무효가 된다. 저장된 동의는 영향이 없다.
 - [ ] **SP client_secret 교체**: SP 담당자와 시간을 맞춰 SP 상세에서 재발급하고 바로 전달한다. 담당자가 바꿀 때까지 그 SP 로그인이 실패하므로 사용이 적은 시간에 한다.
