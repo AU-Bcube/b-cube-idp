@@ -3,7 +3,7 @@
  */
 import type { Child, FC } from "hono/jsx";
 import type { AuditLog } from "./audit";
-import { SENSITIVE_SCOPES, TOKEN_AUTH_METHODS, type Client, type DynamicClient } from "./clients";
+import { SENSITIVE_SCOPES, TOKEN_AUTH_METHODS, type Client } from "./clients";
 import type { InitialAccessToken } from "./initial-access-tokens";
 import { SCOPES } from "./scopes";
 import { Notice, PageHead } from "./views";
@@ -68,7 +68,6 @@ const Tag: FC<{ color: string; children: Child }> = ({ color, children }) => (
 );
 
 const Status: FC<{ client: Client }> = ({ client }) => {
-  if (client.source === "static") return <Tag color="cool-gray">정적</Tag>;
   const [label, color] = {
     pending: ["승인 대기", "purple"],
     active: ["활성", "green"],
@@ -88,17 +87,13 @@ const Scopes: FC<{ scopes: Iterable<string> }> = ({ scopes }) => (
   </span>
 );
 
-export const ClientListPage: FC<{ statics: Client[]; dynamics: DynamicClient[] }> = ({ statics, dynamics }) => {
-  const pending = dynamics.filter((c) => c.status === "pending").length;
-  const rows = [...dynamics, ...statics];
+export const ClientListPage: FC<{ clients: Client[] }> = ({ clients }) => {
+  const pending = clients.filter((c) => c.status === "pending").length;
   return (
     <>
       <h1 class="idp-page-title">SP 목록</h1>
       {pending > 0 ? <Notice kind="warning" title={`승인을 기다리는 SP가 ${pending}개 있습니다.`} /> : null}
-      <p class="idp-lead">
-        정적 SP는 <code>wrangler.jsonc</code>의 <code>CLIENTS</code>에서 관리하므로 여기서 바꿀 수 없습니다. 강조된
-        scope는 학생 정보를 넘기는 scope입니다.
-      </p>
+      <p class="idp-lead">강조된 scope는 학생 정보를 넘기는 scope입니다.</p>
       <div class="idp-table-wrap">
         <table class="cds--data-table cds--data-table--lg">
           <thead>
@@ -112,12 +107,12 @@ export const ClientListPage: FC<{ statics: Client[]; dynamics: DynamicClient[] }
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {clients.length === 0 ? (
               <tr>
                 <td colspan={6}>등록된 SP가 없습니다.</td>
               </tr>
             ) : (
-              rows.map((c) => (
+              clients.map((c) => (
                 <tr>
                   <td>
                     <Status client={c} />
@@ -126,7 +121,7 @@ export const ClientListPage: FC<{ statics: Client[]; dynamics: DynamicClient[] }
                     <a class="cds--link" href={`/admin/clients/${encodeURIComponent(c.clientId)}`}>
                       {c.name}
                     </a>
-                    {c.source === "dynamic" && !c.reviewed ? <div class="idp-muted">미검토</div> : null}
+                    {!c.reviewed ? <div class="idp-muted">미검토</div> : null}
                   </td>
                   <td class="mono">{c.clientId}</td>
                   <td>
@@ -137,7 +132,7 @@ export const ClientListPage: FC<{ statics: Client[]; dynamics: DynamicClient[] }
                       <div class="idp-uri">{u}</div>
                     ))}
                   </td>
-                  <td class="mono">{c.source === "dynamic" ? (c as DynamicClient).createdBy : "wrangler.jsonc"}</td>
+                  <td class="mono">{c.createdBy}</td>
                 </tr>
               ))
             )}
@@ -321,9 +316,8 @@ const ActionButton: FC<{ action: string; csrf: string; label: string; kind?: "pr
   </form>
 );
 
-export const ClientDetailPage: FC<{ client: Client; csrf: string; form?: Child }> = ({ client, csrf, form }) => {
+export const ClientDetailPage: FC<{ client: Client; csrf: string; form: Child }> = ({ client, csrf, form }) => {
   const base = `/admin/clients/${encodeURIComponent(client.clientId)}`;
-  const dyn = client.source === "dynamic" ? (client as DynamicClient) : null;
   return (
     <>
       <h1 class="idp-page-title">
@@ -343,54 +337,37 @@ export const ClientDetailPage: FC<{ client: Client; csrf: string; form?: Child }
               <div class="idp-uri">{u}</div>
             ))}
           </dd>
-          {dyn ? (
-            <>
-              <dt>담당자</dt>
-              <dd>{dyn.contacts.join(", ") || "-"}</dd>
-              <dt>서비스 주소</dt>
-              <dd class="mono">{dyn.clientUri ?? "-"}</dd>
-              <dt>만든 곳</dt>
-              <dd class="mono">{dyn.createdBy}</dd>
-              <dt>RFC 7592 관리</dt>
-              <dd>{dyn.registrationTokenSha256 ? "SP가 registration_access_token으로 직접 관리" : "관리 화면에서만"}</dd>
-              <dt>검토</dt>
-              <dd>{dyn.reviewedAt ? `${fmt(dyn.reviewedAt)} · ${dyn.reviewedBy}` : "미검토"}</dd>
-              <dt>만든 시각 / 수정</dt>
-              <dd>
-                {fmt(dyn.createdAt)} / {fmt(dyn.updatedAt)}
-              </dd>
-            </>
-          ) : (
-            <>
-              <dt>관리</dt>
-              <dd>
-                <code>wrangler.jsonc</code>의 <code>CLIENTS</code>를 고치고 배포해야 바뀝니다.
-              </dd>
-            </>
-          )}
+          <dt>담당자</dt>
+          <dd>{client.contacts.join(", ") || "-"}</dd>
+          <dt>서비스 주소</dt>
+          <dd class="mono">{client.clientUri ?? "-"}</dd>
+          <dt>만든 곳</dt>
+          <dd class="mono">{client.createdBy}</dd>
+          <dt>RFC 7592 관리</dt>
+          <dd>{client.registrationTokenSha256 ? "SP가 registration_access_token으로 직접 관리" : "관리 화면에서만"}</dd>
+          <dt>검토</dt>
+          <dd>{client.reviewedAt ? `${fmt(client.reviewedAt)} · ${client.reviewedBy}` : "미검토"}</dd>
+          <dt>만든 시각 / 수정</dt>
+          <dd>
+            {fmt(client.createdAt)} / {fmt(client.updatedAt)}
+          </dd>
         </dl>
-        {dyn ? (
-          <div class="idp-toolbar">
-            {dyn.status === "pending" || !dyn.reviewed ? (
-              <ActionButton action={`${base}/approve`} csrf={csrf} label="승인" kind="primary" />
-            ) : null}
-            {dyn.status === "suspended" ? (
-              <ActionButton action={`${base}/resume`} csrf={csrf} label="재개" />
-            ) : (
-              <ActionButton action={`${base}/suspend`} csrf={csrf} label="중지" kind="danger" />
-            )}
-            <ActionButton action={`${base}/rotate-secret`} csrf={csrf} label="client_secret 재발급" />
-            <ActionButton action={`${base}/delete`} csrf={csrf} label="삭제" kind="danger" />
-          </div>
-        ) : null}
+        <div class="idp-toolbar">
+          {client.status === "pending" || !client.reviewed ? (
+            <ActionButton action={`${base}/approve`} csrf={csrf} label="승인" kind="primary" />
+          ) : null}
+          {client.status === "suspended" ? (
+            <ActionButton action={`${base}/resume`} csrf={csrf} label="재개" />
+          ) : (
+            <ActionButton action={`${base}/suspend`} csrf={csrf} label="중지" kind="danger" />
+          )}
+          <ActionButton action={`${base}/rotate-secret`} csrf={csrf} label="client_secret 재발급" />
+          <ActionButton action={`${base}/delete`} csrf={csrf} label="삭제" kind="danger" />
+        </div>
       </div>
-      {dyn ? (
-        <>
-          <h2 class="idp-section-title">정보 수정</h2>
-          <p class="idp-lead">관리자가 고치면 승인 상태를 유지합니다. SP가 RFC 7592로 민감한 scope를 늘리면 다시 승인 대기가 됩니다.</p>
-          {form}
-        </>
-      ) : null}
+      <h2 class="idp-section-title">정보 수정</h2>
+      <p class="idp-lead">관리자가 고치면 승인 상태를 유지합니다. SP가 RFC 7592로 민감한 scope를 늘리면 다시 승인 대기가 됩니다.</p>
+      {form}
     </>
   );
 };

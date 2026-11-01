@@ -10,11 +10,11 @@ import {
   ClientMetadataError,
   createClient,
   deleteClient,
-  findDynamicClient,
+  findClient,
   metadataResponse,
   parseClientMetadata,
   updateClientMetadata,
-  type DynamicClient,
+  type Client,
 } from "../clients";
 import { sha256Hex, timingSafeEqual } from "../crypto";
 import { consumeInitialAccessToken } from "../initial-access-tokens";
@@ -49,7 +49,7 @@ function registrationUri(c: Context<HonoEnv>, clientId: string): string {
   return `${c.var.config.issuer}/register/${clientId}`;
 }
 
-function clientResponse(c: Context<HonoEnv>, client: DynamicClient) {
+function clientResponse(c: Context<HonoEnv>, client: Client) {
   return {
     ...metadataResponse(client),
     registration_client_uri: registrationUri(c, client.clientId),
@@ -59,9 +59,9 @@ function clientResponse(c: Context<HonoEnv>, client: DynamicClient) {
 }
 
 /** registration_access_token으로 자기 SP를 찾는다. 없는 SP와 틀린 토큰을 구분하지 않는다. */
-async function authorizedClient(c: Context<HonoEnv>): Promise<DynamicClient | null> {
+async function authorizedClient(c: Context<HonoEnv>): Promise<Client | null> {
   const token = bearer(c);
-  const client = await findDynamicClient(c.env.DB, c.req.param("clientId") ?? "");
+  const client = await findClient(c.env.DB, c.req.param("clientId") ?? "");
   if (!token || !client?.registrationTokenSha256) return null;
   return timingSafeEqual(await sha256Hex(token), client.registrationTokenSha256) ? client : null;
 }

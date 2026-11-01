@@ -114,7 +114,7 @@ export const loginRoutes = new Hono<HonoEnv>()
   .get("/consent", async (c) => {
     const flow = await loadFlow(c);
     if (!flow?.req || !flow.user || !flow.csrf) return errorPage(c, 400, "로그인 실패", EXPIRED_MESSAGE);
-    const client = await findClient(c.var.config, c.env.DB, flow.req.client_id);
+    const client = await findClient(c.env.DB, flow.req.client_id);
     if (client?.status !== "active") return errorPage(c, 400, "로그인 실패", EXPIRED_MESSAGE);
 
     // 동의 후 SP로 리다이렉트하므로 form-action에 SP 출처를 더한다(브라우저가 리다이렉트에도 적용한다).
@@ -145,7 +145,7 @@ export const loginRoutes = new Hono<HonoEnv>()
       return redirectToClient(c, flow.req, { error: "access_denied", error_description: "user denied consent" });
     }
     // 동의 화면을 띄운 사이에 SP가 정지되었을 수 있다.
-    const client = await findClient(c.var.config, c.env.DB, flow.req.client_id);
+    const client = await findClient(c.env.DB, flow.req.client_id);
     if (client?.status !== "active") {
       return redirectToClient(c, flow.req, { error: "unauthorized_client", error_description: "client is not active" });
     }

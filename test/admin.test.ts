@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { findDynamicClient } from "../src/clients";
+import { findClient } from "../src/clients";
 import {
   ADMIN_EMAIL,
   adminLogin,
@@ -47,7 +47,7 @@ describe("관리 화면 접근", () => {
     expect((await browser.fetch("/admin")).status).toBe(302);
   });
 
-  it("관리자는 목록을 보고, 정적 SP도 목록에 나온다", async () => {
+  it("관리자는 SP 목록을 본다", async () => {
     const { browser } = await loggedIn();
     const html = await (await browser.fetch("/admin")).text();
     expect(html).toContain(ADMIN_EMAIL);
@@ -92,7 +92,7 @@ describe("SP 관리", () => {
   it("관리자가 만든 SP는 바로 활성·검토 상태이고 로그인할 수 있다", async () => {
     const { browser, csrf } = await loggedIn();
     const { clientId, clientSecret } = await createSp(browser, csrf, ["email", "student"]);
-    const client = await findDynamicClient(env.DB, clientId);
+    const client = await findClient(env.DB, clientId);
     expect(client).toMatchObject({ status: "active", reviewed: true, reviewedBy: ADMIN_EMAIL, registrationTokenSha256: null });
     expect([...client!.scopes]).toEqual(["openid", "email", "student"]);
 
@@ -129,18 +129,18 @@ describe("SP 관리", () => {
     const base = `/admin/clients/${reg.client_id}`;
 
     await browser.postForm(`${base}/approve`, { csrf });
-    expect(await findDynamicClient(env.DB, reg.client_id)).toMatchObject({ status: "active", reviewed: true });
+    expect(await findClient(env.DB, reg.client_id)).toMatchObject({ status: "active", reviewed: true });
 
     await browser.postForm(`${base}/suspend`, { csrf });
-    expect((await findDynamicClient(env.DB, reg.client_id))?.status).toBe("suspended");
+    expect((await findClient(env.DB, reg.client_id))?.status).toBe("suspended");
     // 중지된 SP는 승인으로 되살리지 않는다.
     await browser.postForm(`${base}/approve`, { csrf });
-    expect((await findDynamicClient(env.DB, reg.client_id))?.status).toBe("suspended");
+    expect((await findClient(env.DB, reg.client_id))?.status).toBe("suspended");
     await browser.postForm(`${base}/resume`, { csrf });
-    expect((await findDynamicClient(env.DB, reg.client_id))?.status).toBe("active");
+    expect((await findClient(env.DB, reg.client_id))?.status).toBe("active");
 
     await browser.postForm(`${base}/delete`, { csrf });
-    expect(await findDynamicClient(env.DB, reg.client_id)).toBeNull();
+    expect(await findClient(env.DB, reg.client_id)).toBeNull();
 
     const audit = await (await browser.fetch("/admin/audit")).text();
     for (const action of ["client.register", "client.approve", "client.suspend", "client.resume", "client.delete"]) {
@@ -166,13 +166,6 @@ describe("SP 관리", () => {
     expect((await tokenRequest(form, basicAuth(clientId, newSecret!))).status).toBe(200);
   });
 
-  it("정적 SP는 관리 화면에서 바꿀 수 없다", async () => {
-    const { browser, csrf } = await loggedIn();
-    const page = await (await browser.fetch("/admin/clients/test-sp")).text();
-    expect(page).toContain("wrangler.jsonc");
-    expect(page).not.toContain("/admin/clients/test-sp/suspend");
-    expect((await browser.postForm("/admin/clients/test-sp/suspend", { csrf })).status).toBe(404);
-  });
 });
 
 describe("등록 토큰", () => {

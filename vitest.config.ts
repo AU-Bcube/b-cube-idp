@@ -1,10 +1,9 @@
-import { createHash, webcrypto } from "node:crypto";
+import { webcrypto } from "node:crypto";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 // 테스트는 workerd 안에서 실행된다. 개인 .dev.vars나 운영 값과 무관하게 설정을 고정한다.
-// test/helpers.ts의 CLIENT_SECRET과 같은 값
-const TEST_CLIENT_SECRET = "test-client-secret-0123456789abcdefghijklmnop";
+// 테스트용 SP는 test/setup.ts가 D1에 넣는다.
 
 async function testSigningKey(): Promise<string> {
   const { privateKey } = await webcrypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"]);
@@ -26,22 +25,6 @@ export default defineConfig({
           ENCRYPTION_SECRET: "test-encryption-secret-0123456789abcdefghijkl",
           MHAKSA_INTERVAL_MS: "0",
           ADMIN_EMAILS: "t-admin@ajou.ac.kr",
-          CLIENTS: JSON.stringify([
-            {
-              client_id: "test-sp",
-              name: "테스트 SP",
-              redirect_uris: ["https://sp.example.com/auth/callback"],
-              scopes: ["openid", "email", "profile", "student", "sohakoe"],
-              client_secret_sha256: createHash("sha256").update(TEST_CLIENT_SECRET).digest("hex"),
-            },
-            {
-              client_id: "email-only",
-              name: "이메일만",
-              redirect_uris: ["https://other.example.com/cb"],
-              scopes: ["openid", "email"],
-              client_secret_sha256: createHash("sha256").update("other-secret").digest("hex"),
-            },
-          ]),
           TEST_MIGRATIONS: await readD1Migrations("./migrations"),
         },
       },
@@ -49,6 +32,6 @@ export default defineConfig({
   ],
   test: {
     include: ["test/**/*.test.ts"],
-    setupFiles: ["./test/apply-migrations.ts"],
+    setupFiles: ["./test/setup.ts"],
   },
 });

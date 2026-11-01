@@ -15,7 +15,6 @@ import {
   resetFakes,
   SENSITIVE,
   type Registered,
-  workerWith,
 } from "./helpers";
 
 beforeAll(installFakes);
@@ -237,13 +236,3 @@ describe("RFC 7592 관리", () => {
   });
 });
 
-describe("정적 SP 설정", () => {
-  it("정적 SP는 dyn- 접두사를 쓸 수 없다", async () => {
-    const fetch = workerWith({
-      CLIENTS: JSON.stringify([
-        { client_id: "dyn-static", name: "x", redirect_uris: ["https://x.example.com/cb"], scopes: ["openid"] },
-      ]),
-    });
-    expect((await fetch(new Request(`${ISSUER}/health`))).status).toBe(500);
-  });
-});
