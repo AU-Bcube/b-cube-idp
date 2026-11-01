@@ -1,5 +1,7 @@
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from "jose";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { CONSENT_TTL_MS } from "../src/consents";
+import { MAX_FLOWS } from "../src/flow";
 import {
   appFetch,
   appWith,
@@ -8,10 +10,11 @@ import {
   Browser,
   CLIENT_ID,
   CLIENT_SECRET,
-  csrfFrom,
+  consentForm,
   google,
   googleUser,
   installFakes,
+  isConsentRedirect,
   ISSUER,
   loginAndConsent,
   loginUntilConsent,
@@ -112,9 +115,9 @@ describe("로그인과 동의", () => {
     mhaksa.users.set("hong", "202600123");
     const browser = new Browser();
     const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
-    expect(res.headers.get("Location")).toBe("/consent");
+    expect(isConsentRedirect(res)).toBe(true);
 
-    const page = await browser.fetch("/consent");
+    const page = await browser.fetch(res.headers.get("Location")!);
     const html = await page.text();
     expect(html).toContain("테스트 SP");
     expect(html).toContain("202600123");
@@ -207,9 +210,9 @@ describe("로그인과 동의", () => {
   it("거부하면 access_denied로 돌려보내고 코드를 주지 않는다", async () => {
     mhaksa.users.set("hong", "202600123");
     const browser = new Browser();
-    await loginUntilConsent(browser, "hong@ajou.ac.kr");
-    const page = await browser.fetch("/consent");
-    const res = await browser.postForm("/consent", { csrf: csrfFrom(await page.text()), decision: "deny" });
+    const { res: callback } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
+    const page = await browser.fetch(callback.headers.get("Location")!);
+    const res = await browser.postForm("/consent", { ...consentForm(await page.text()), decision: "deny" });
     const location = new URL(res.headers.get("Location")!);
     expect(location.searchParams.get("error")).toBe("access_denied");
     expect(location.searchParams.has("code")).toBe(false);
@@ -218,10 +221,10 @@ describe("로그인과 동의", () => {
   it("CSRF 토큰이 틀리거나 다른 출처에서 보낸 동의는 거절한다", async () => {
     mhaksa.users.set("hong", "202600123");
     const browser = new Browser();
-    await loginUntilConsent(browser, "hong@ajou.ac.kr");
-    const csrf = csrfFrom(await (await browser.fetch("/consent")).text());
-    expect((await browser.postForm("/consent", { csrf: "wrong", decision: "allow" })).status).toBe(400);
-    const cross = await browser.postForm("/consent", { csrf, decision: "allow" }, { Origin: "https://evil.example.com" });
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
+    const form = consentForm(await (await browser.fetch(res.headers.get("Location")!)).text());
+    expect((await browser.postForm("/consent", { ...form, csrf: "wrong", decision: "allow" })).status).toBe(400);
+    const cross = await browser.postForm("/consent", { ...form, decision: "allow" }, { Origin: "https://evil.example.com" });
     expect(cross.status).toBe(403);
   });
 
@@ -232,7 +235,159 @@ describe("로그인과 동의", () => {
   });
 });
 
+describe("동의 기억", () => {
+  const consentDoc = async (clientId = CLIENT_ID) =>
+    (await testDb()).consents.findOne({ sub: "google-hong@ajou.ac.kr", client_id: clientId });
+
+  it("동의 화면에 1년 뒤 기한을 보여주고, 동의하면 1년간 저장한다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr");
+    const html = await (await browser.fetch(res.headers.get("Location")!)).text();
+    const expires = new Date(Date.now() + CONSENT_TTL_MS + 9 * 3600_000).toISOString().slice(0, 10);
+    expect(html).toContain(expires);
+    expect(html).toContain("1년간 저장");
+    expect(html).not.toContain("이번 로그인에 한해");
+
+    await browser.postForm("/consent", { ...consentForm(html), decision: "allow" });
+    const doc = await consentDoc();
+    expect(doc!.scopes).toEqual(["openid", "email", "profile", "student"]);
+    expect(doc!.expires_at.getTime() - doc!.granted_at).toBe(CONSENT_TTL_MS);
+  });
+
+  it("동의한 SP에 같거나 좁은 scope로 다시 로그인하면 동의 화면 없이 코드를 준다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr");
+
+    const browser = new Browser();
+    const { res, verifier } = await loginUntilConsent(browser, "hong@ajou.ac.kr", { scope: "openid email student" });
+    const location = new URL(res.headers.get("Location")!);
+    expect(location.origin + location.pathname).toBe(REDIRECT_URI);
+    expect(browser.cookies.size).toBe(0);
+    const token = await redeem(location, verifier);
+    expect(token.status).toBe(200);
+    // 학생 정보는 저장하지 않고 로그인할 때마다 다시 조회한다.
+    const { id_token } = (await token.json()) as { id_token: string };
+    expect((await verifyIdToken(id_token)).payload).toMatchObject({ student: { id: "202600123" } });
+  });
+
+  it("더 넓은 scope를 요청하거나 다른 SP면 다시 묻는다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+
+    const wider = await loginUntilConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email student" });
+    expect(isConsentRedirect(wider.res)).toBe(true);
+    const other = await loginUntilConsent(new Browser(), "hong@ajou.ac.kr", {
+      clientId: "email-only",
+      redirectUri: "https://other.example.com/cb",
+      scope: "openid email",
+    });
+    expect(isConsentRedirect(other.res)).toBe(true);
+  });
+
+  it("만료된 동의는 쓰지 않는다", async () => {
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+    // TTL 인덱스가 지우기 전이라도 만료된 동의는 쓰지 않는다.
+    await (await testDb()).consents.updateMany({}, { $set: { expires_at: new Date(Date.now() - 1) } });
+    const { res } = await loginUntilConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+    expect(isConsentRedirect(res)).toBe(true);
+  });
+
+  it("prompt=consent면 다시 묻고, 거부하면 기억한 동의를 지운다", async () => {
+    await loginAndConsent(new Browser(), "hong@ajou.ac.kr", { scope: "openid email" });
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", {
+      scope: "openid email",
+      extra: { prompt: "login consent" },
+    });
+    expect(isConsentRedirect(res)).toBe(true);
+    const page = await browser.fetch(res.headers.get("Location")!);
+    await browser.postForm("/consent", { ...consentForm(await page.text()), decision: "deny" });
+    expect(await consentDoc()).toBeNull();
+  });
+});
+
+describe("여러 탭", () => {
+  it("한 브라우저에서 두 로그인을 동시에 진행해도 각자 끝난다", async () => {
+    mhaksa.users.set("hong", "202600123");
+    const browser = new Browser();
+    google.claims = googleUser("hong@ajou.ac.kr");
+    const tabA = await authorizeUrl({ scope: "openid email", extra: { state: "tab-a" } });
+    const tabB = await authorizeUrl({
+      clientId: "email-only",
+      redirectUri: "https://other.example.com/cb",
+      scope: "openid email",
+      extra: { state: "tab-b" },
+    });
+    const googleA = new URL((await browser.fetch(tabA.url)).headers.get("Location")!);
+    const googleB = new URL((await browser.fetch(tabB.url)).headers.get("Location")!);
+    expect(browser.cookies.size).toBe(2);
+
+    // A를 시작한 뒤 B를 시작했어도 A의 콜백과 동의가 B에 섞이지 않는다.
+    const callback = (u: URL) =>
+      browser.fetch(`/callback/google?state=${u.searchParams.get("state")}&code=${u.searchParams.get("nonce")}`);
+    const consentA = await callback(googleA);
+    const consentB = await callback(googleB);
+    const pageA = await (await browser.fetch(consentA.headers.get("Location")!)).text();
+    const pageB = await (await browser.fetch(consentB.headers.get("Location")!)).text();
+    expect(pageA).toContain("테스트 SP");
+    expect(pageB).toContain("이메일만");
+
+    const doneB = new URL((await browser.postForm("/consent", { ...consentForm(pageB), decision: "allow" })).headers.get("Location")!);
+    const doneA = new URL((await browser.postForm("/consent", { ...consentForm(pageA), decision: "allow" })).headers.get("Location")!);
+    expect(doneA.origin + doneA.pathname).toBe(REDIRECT_URI);
+    expect(doneA.searchParams.get("state")).toBe("tab-a");
+    expect(doneB.origin).toBe("https://other.example.com");
+    expect(doneB.searchParams.get("state")).toBe("tab-b");
+    expect((await redeem(doneA, tabA.verifier)).status).toBe(200);
+    expect(browser.cookies.size).toBe(0);
+  });
+
+  it(`흐름 쿠키는 ${MAX_FLOWS}개까지만 두고 오래된 것부터 지운다`, async () => {
+    const browser = new Browser();
+    const states: string[] = [];
+    for (let i = 0; i < MAX_FLOWS + 2; i++) {
+      const { url } = await authorizeUrl();
+      states.push(new URL((await browser.fetch(url)).headers.get("Location")!).searchParams.get("state")!);
+      // 흐름 id는 밀리초 시각으로 정렬한다.
+      await new Promise((r) => setTimeout(r, 2));
+    }
+    expect(browser.cookies.size).toBe(MAX_FLOWS);
+    const names = [...browser.cookies.keys()];
+    for (const state of states.slice(-MAX_FLOWS)) expect(names).toContain(`idp_flow_${state.split(".")[0]}`);
+  });
+
+  it("흐름 id가 없거나 다른 동의 폼은 거절한다", async () => {
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", { scope: "openid email" });
+    const form = consentForm(await (await browser.fetch(res.headers.get("Location")!)).text());
+    expect((await browser.fetch("/consent")).status).toBe(400);
+    expect((await browser.postForm("/consent", { csrf: form.csrf, decision: "allow" })).status).toBe(400);
+    expect((await browser.postForm("/consent", { ...form, flow: "0-AAAAAAAAAAAAAAAA", decision: "allow" })).status).toBe(400);
+  });
+});
+
 describe("화면", () => {
+  it("루트는 내 동의 관리와 개발자 정보로 안내한다", async () => {
+    const res = await appFetch(`${ISSUER}/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("B-CUBE 통합 로그인");
+    expect(html).toContain('href="/consents"');
+    expect(html).toContain('href="/.well-known/openid-configuration"');
+    expect(html).toContain("https://github.com/AU-Bcube/b-cube-idp");
+  });
+
+  it("모든 사용자 화면의 B-CUBE 통합 로그인은 안내 페이지로 가는 링크다", async () => {
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", { scope: "openid email" });
+    const consent = await (await browser.fetch(res.headers.get("Location")!)).text();
+    const notFound = await (await appFetch(`${ISSUER}/nope`)).text();
+    for (const html of [consent, notFound]) {
+      expect(html).toMatch(/<p class="idp-brand"><a href="\/">B-CUBE 통합 로그인<\/a><\/p>/);
+    }
+  });
+
   it("Carbon 스타일 파일을 쓰고 인라인 스타일과 스크립트를 허용하지 않는다", async () => {
     const res = await appFetch(`${ISSUER}/nope`);
     expect(res.status).toBe(404);
@@ -301,8 +456,9 @@ describe("설정", () => {
     expect(await res.text()).toContain("개발용 로그인");
   });
 
-  it("만료된 사용 기록은 TTL 인덱스가 지운다", async () => {
-    const indexes = await (await testDb()).usedCodes.indexes();
-    expect(indexes).toContainEqual(expect.objectContaining({ key: { expires_at: 1 }, expireAfterSeconds: 0 }));
+  it("만료된 사용 기록과 동의는 TTL 인덱스가 지운다", async () => {
+    const db = await testDb();
+    expect(await db.usedCodes.indexes()).toContainEqual(expect.objectContaining({ key: { expires_at: 1 }, expireAfterSeconds: 0 }));
+    expect(await db.consents.indexes()).toContainEqual(expect.objectContaining({ key: { expires_at: 1 }, expireAfterSeconds: 0 }));
   });
 });

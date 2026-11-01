@@ -184,7 +184,9 @@ export const oidcRoutes = new Hono<HonoEnv>()
     if (!requested.includes("openid")) return fail("invalid_scope", "openid scope is required");
     const scopes = requested.filter((s) => client.scopes.has(s));
     if (scopes.length !== requested.length) return fail("invalid_scope", "scope not allowed for this client");
-    if (q.prompt === "none") return fail("login_required", "consent is required for every login");
+    // 이 IdP는 로그인 세션을 두지 않으므로 매번 Google 로그인이 필요하다.
+    const prompt = new Set((q.prompt ?? "").split(" ").filter(Boolean));
+    if (prompt.has("none")) return fail("login_required", "login is required for every request");
 
     const req: AuthRequest = {
       client_id: client.clientId,
@@ -193,6 +195,7 @@ export const oidcRoutes = new Hono<HonoEnv>()
       state,
       nonce: q.nonce,
       code_challenge: q.code_challenge as string,
+      ...(prompt.has("consent") ? { prompt_consent: true } : {}),
     };
     return startGoogleLogin(c, { req });
   })

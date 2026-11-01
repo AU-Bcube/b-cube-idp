@@ -10,6 +10,8 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
 - 비밀값(`SIGNING_KEY`, `ENCRYPTION_SECRET`, `GOOGLE_CLIENT_SECRET`, SP의 `client_secret`)은 저장소, 이슈, PR, 채팅에 붙여 넣지 않는다.
   Netlify 사이트 환경 변수와 로컬 `.env`(gitignore됨)에만 둔다.
 - SP는 모두 MongoDB에 있다. 관리 화면이나 동적 등록(RFC 7591)으로만 만들고, `client_secret`은 IdP가 만들어 한 번만 보여준다.
+- 사용자의 동의 기록(Google `sub`, SP, 동의한 scope, 동의한 날, 기한)이 MongoDB `consents` 컬렉션에 1년간 남는다.
+  학생 정보 값은 저장하지 않는다. 사용자는 `/consents`에서 직접 동의를 확인하고 철회한다(8단계).
 
 ## 1. 로컬 개발 환경
 
@@ -23,6 +25,7 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
   운영 DB를 로컬에서 쓰지 않는다. DB 이름만 달라도 된다.
 - [ ] `pnpm dev`(netlify dev) 후 http://localhost:8787/.well-known/openid-configuration 과 http://localhost:8787/health 가 열리는지 확인한다.
 - [ ] 로컬에서 SP 연동을 시험하려면 http://localhost:8787/admin/clients/new 에서 SP를 만든다(`DEV_FAKE_LOGIN=true`이면 바로 들어간다).
+- [ ] SP로 한 번 로그인해 동의한 뒤 http://localhost:8787/consents 에서 그 SP가 보이고 철회되는지 확인한다.
 
 ## 2. Google OAuth 클라이언트
 
@@ -40,7 +43,7 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
 - [ ] 운영용 MongoDB(예: MongoDB Atlas)를 만들고, IdP 전용 DB 사용자를 둔다. 권한은 IdP DB 하나의 readWrite만 준다.
 - [ ] Netlify Functions는 고정 IP가 없다. Atlas라면 Network Access에서 `0.0.0.0/0`을 열어야 하므로 DB 사용자 비밀번호를 길게 만든다.
 - [ ] 연결 문자열(`mongodb+srv://...`)과 DB 이름을 4단계에서 환경 변수로 넣는다.
-- 컬렉션과 인덱스는 IdP가 처음 연결할 때 만든다([src/db.ts](../src/db.ts)). 사용한 인가 코드 기록(`used_codes`)은 TTL 인덱스가 지우므로 정리 작업이 없다.
+- 컬렉션과 인덱스는 IdP가 처음 연결할 때 만든다([src/db.ts](../src/db.ts)). 사용한 인가 코드 기록(`used_codes`)과 만료된 동의(`consents`)는 TTL 인덱스가 지우므로 정리 작업이 없다.
 
 ## 4. Netlify 배포
 
@@ -68,6 +71,7 @@ SP 쪽 연동 작업은 SP 개발자에게 [SP_MIGRATION_PROMPT.md](SP_MIGRATION
   | `ALLOWED_EMAIL_DOMAIN`, `MHAKSA_INTERVAL_MS` | 선택. 기본값 `ajou.ac.kr`, `3000` |
 - [ ] Domain management에서 `id.b-cube.kr`을 custom domain으로 추가하고, `b-cube.kr` DNS에 Netlify가 안내하는 CNAME을 만든다. HTTPS 인증서는 Netlify가 발급한다.
 - [ ] 배포한 뒤 https://id.b-cube.kr/health 와 https://id.b-cube.kr/.well-known/openid-configuration 을 확인한다.
+  https://id.b-cube.kr 에 안내 페이지가 나오고, https://id.b-cube.kr/consents 가 Google 로그인으로 넘어가는지도 확인한다.
   설정 오류가 있으면 모든 요청이 500이고, 원인은 Netlify의 함수 로그(Logs → Functions → `idp`)에 `[config]`로 나온다.
 
 ## 5. 운영 환경에서 mhaksa 연결 확인
@@ -140,7 +144,32 @@ SP를 만드는 방법은 두 가지다. 어느 쪽이든 `client_secret`은 화
 - [ ] subdomain-lending(`domain.b-cube.kr`)을 관리 화면에서 등록한다. redirect_uri는 `https://domain.b-cube.kr/auth/callback`,
   scope는 `openid email profile student`. `client_id`, `client_secret`과 SP_MIGRATION_PROMPT.md를 담당자에게 전달한다.
 
-## 8. 정기 작업
+## 8. 사용자 동의 관리
+
+사용자는 SP에 정보를 제공하기로 한 동의를 **https://id.b-cube.kr/consents** 에서 직접 확인하고 SP별로 철회한다.
+https://id.b-cube.kr 첫 화면(안내 페이지)의 버튼과 동의 화면 하단의 링크도 같은 곳으로 간다. 사용 방법은 [README의 내 동의 확인과 철회](../README.md#내-동의-확인과-철회)에 있다.
+
+- [ ] B-CUBE 공지, 개인정보 처리 안내 등 사용자가 보는 곳에 동의 확인·철회 주소(`https://id.b-cube.kr/consents`)를 알린다.
+  기억하기 쉽게 `https://id.b-cube.kr`만 알려도 된다.
+- [ ] SP 담당자에게 서비스의 개인정보 안내나 계정 화면에 같은 주소를 링크하도록 안내한다(SP_MIGRATION_PROMPT.md에 들어 있다).
+
+동작:
+
+- 동의는 동의한 날부터 1년간 저장되고, 그동안 같은 SP가 동의한 범위 안에서 요청하면 동의 화면을 생략한다. 기한은 동의 화면에 표시된다.
+- SP가 더 넓은 scope를 요청하거나 기한이 지나면 다시 묻는다. 다시 동의하면 기한이 그날부터 1년으로 늘어난다.
+- 철회하면 다음 로그인 때 다시 묻는다. 이미 SP에 전달된 정보는 IdP가 지울 수 없다.
+- SP가 `prompt=consent`로 다시 물을 때 사용자가 거부해도 그 SP의 동의가 지워진다.
+- 동의 기록은 감사 로그에 남기지 않는다. 만료된 기록은 TTL 인덱스가 지운다.
+
+문의가 왔을 때:
+
+- "동의를 철회하고 싶다": `/consents` 주소를 안내한다. 사용자가 직접 할 수 있다.
+- "이미 넘어간 정보를 지워 달라": 해당 SP 담당자에게 넘긴다. IdP에는 학생 정보 값이 남아 있지 않다.
+- 사용자가 직접 할 수 없는 사정이면 MongoDB `consents` 컬렉션에서 그 사용자(`sub`)와 SP(`client_id`)의 문서를 지운다.
+  관리 화면에는 동의 기록을 보는 기능이 없다.
+- SP를 삭제해도 그 SP에 대한 동의 기록은 기한까지 남고, 내 동의 관리에는 "삭제된 서비스 (client_id)"로 나온다. 사용자가 철회할 수 있다.
+
+## 9. 정기 작업
 
 - [ ] **ajou-internal-id-federation 버전 올리기**: 새 커밋 해시로 `pnpm-workspace.yaml`의 `allowBuilds` 키와 `package.json`의 의존성을 함께 바꾼다.
   ```sh
@@ -152,17 +181,19 @@ SP를 만드는 방법은 두 가지다. 어느 쪽이든 `client_secret`은 화
   토큰 수명이 5분이고 SP는 id_token을 받자마자 검증하므로, 교체 순간 진행 중이던 로그인 몇 건만 실패한다.
   SP는 새 `kid`를 만나면 JWKS를 다시 받아야 한다. 교체 전에 SP 담당자에게 알린다.
 - [ ] **GitHub PAT 교체**: 4단계의 `GIT_CONFIG_KEY_0`에 든 PAT가 만료되기 전에 새 PAT로 바꾼다. 만료되면 빌드가 의존성 설치에서 실패한다.
-- [ ] **암호화 키 교체**: `ENCRYPTION_SECRET`을 바꾸면 진행 중인 로그인(최대 10분)과 발급된 access_token(최대 5분)이 무효가 된다.
+- [ ] **암호화 키 교체**: `ENCRYPTION_SECRET`을 바꾸면 진행 중인 로그인(최대 10분), 발급된 access_token(최대 5분),
+  관리 화면 세션, 내 동의 관리 세션(최대 30분)이 무효가 된다. 저장된 동의는 영향이 없다.
 - [ ] **SP client_secret 교체**: SP 담당자와 시간을 맞춰 SP 상세에서 재발급하고 바로 전달한다. 담당자가 바꿀 때까지 그 SP 로그인이 실패하므로 사용이 적은 시간에 한다.
 - [ ] **관리자 바꾸기**: Netlify 환경 변수 `ADMIN_EMAILS`를 바꾸고 다시 배포한다. 목록에서 빠진 관리자는 이미 열린 세션도 다음 요청부터 막힌다.
 - [ ] **감사 로그 확인**: `/admin/audit`에서 SP 등록·변경을 주기적으로 본다. 감사 로그는 지우지 않으므로 오래 쌓이면 MongoDB `audit_logs` 컬렉션에서 직접 정리한다.
 
-## 9. 남아 있는 제한
+## 10. 남아 있는 제한
 
-- 동의 기록을 저장하지 않으므로 로그인할 때마다 동의 화면이 나온다.
 - 로그아웃 엔드포인트가 없다. IdP는 자체 세션을 만들지 않으므로 SP 세션만 끊으면 된다. 다만 Google 세션은 남는다.
 - Netlify 함수 인스턴스가 새로 뜨면(cold start) MongoDB 연결 시간이 그 요청에 더해진다.
 - mhaksa 조회는 요청 사이에 `MHAKSA_INTERVAL_MS`(기본 3000ms)를 기다린다. `student` scope는 약 3초, `sohakoe`까지 요청하면 약 6초가 로그인에 더해진다.
 - 화면은 IBM Plex Sans KR과 D2Coding을 jsDelivr에서 받는다. jsDelivr에 접근할 수 없으면 시스템 글꼴로 표시된다. 동작에는 영향이 없다.
 - 동적 SP의 client_secret은 만료되지 않는다(`client_secret_expires_at: 0`).
-- 동시에 두 탭에서 로그인하면 흐름 쿠키가 하나라 먼저 시작한 쪽이 "로그인 요청이 만료" 오류를 낸다.
+- 내 동의 관리(`/consents`)에서 철회해도 이미 SP에 전달한 정보는 지워지지 않는다. 삭제는 각 SP가 처리해야 한다.
+- 관리 화면에서 사용자의 동의 기록을 보거나 지울 수 없다. 필요하면 MongoDB `consents` 컬렉션에서 직접 처리한다.
+- 한 브라우저에서 동시에 진행할 수 있는 로그인은 5개다. 6번째를 시작하면 가장 먼저 시작한 흐름이 "로그인 요청이 만료" 오류를 낸다.

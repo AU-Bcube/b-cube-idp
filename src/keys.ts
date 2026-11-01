@@ -19,7 +19,7 @@ type CryptoKey = webcrypto.CryptoKey;
 
 export const SIGNING_ALG = "ES256";
 
-export type SealPurpose = "flow" | "code" | "access_token" | "admin";
+export type SealPurpose = "flow" | "code" | "access_token" | "admin" | "account";
 
 interface SigningKey {
   kid: string;

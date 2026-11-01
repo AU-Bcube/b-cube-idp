@@ -65,7 +65,9 @@ const Layout: FC<{ title: string; children: Child }> = ({ title, children }) => 
     <body>
       <div class="idp-center">
         <main class="idp-card cds--layer-two">
-          <p class="idp-brand">B-CUBE 통합 로그인</p>
+          <p class="idp-brand">
+            <a href="/">B-CUBE 통합 로그인</a>
+          </p>
           {children}
         </main>
       </div>
@@ -77,6 +79,31 @@ export const ErrorPage: FC<{ title: string; message: string }> = ({ title, messa
   <Layout title={title}>
     <h1 class="idp-title idp-title--error">{title}</h1>
     <p class="idp-body">{message}</p>
+  </Layout>
+);
+
+/** 소스 코드 공개 주소(AGPL-3.0-or-later) */
+export const SOURCE_URL = "https://github.com/AU-Bcube/b-cube-idp";
+
+/** 루트(/) 안내 페이지. 주소창에 IdP 주소를 직접 입력한 사용자를 위한 화면이다. */
+export const HomePage: FC<{ emailDomain: string }> = ({ emailDomain }) => (
+  <Layout title="B-CUBE 통합 로그인">
+    <h1 class="idp-title">B-CUBE 통합 로그인</h1>
+    <p class="idp-body">
+      B-CUBE 서비스에 학교 Google 계정(@{emailDomain})으로 로그인하는 곳입니다. 각 서비스에서 로그인을 누르면 이곳을 거쳐
+      로그인합니다.
+    </p>
+    <h2 class="idp-scope-label">내 동의 관리</h2>
+    <p class="idp-body">서비스에 제공하기로 동의한 정보를 확인하고, 서비스별로 동의를 철회할 수 있습니다.</p>
+    <a href="/consents" class="cds--btn cds--btn--lg cds--layout--size-lg cds--btn--primary idp-home-action">
+      내 동의 관리
+    </a>
+    <p class="idp-note">
+      비밀번호와 학생 정보는 저장하지 않습니다. 어느 서비스에 어떤 항목을 동의했는지만 1년간 저장합니다.
+      <br />
+      서비스 개발자: <a href="/.well-known/openid-configuration">OpenID Connect 설정</a> ·{" "}
+      <a href={SOURCE_URL}>소스 코드 (AGPL-3.0)</a>
+    </p>
   </Layout>
 );
 
@@ -131,6 +158,11 @@ function scopeValue(scope: Exclude<Scope, "openid">, user: AuthenticatedUser): C
   }
 }
 
+/** 한국 시간 날짜 (YYYY-MM-DD) */
+function kstDate(ms: number): string {
+  return new Date(ms + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
 export const ConsentPage: FC<{
   clientName: string;
   /** 관리자가 검토한 SP인지 */
@@ -138,14 +170,17 @@ export const ConsentPage: FC<{
   redirectOrigin: string;
   user: AuthenticatedUser;
   scopes: Scope[];
+  flowId: string;
   csrf: string;
-}> = ({ clientName, reviewed, redirectOrigin, user, scopes, csrf }) => {
+  /** 지금 동의하면 동의를 기억하는 기한 */
+  consentExpiresAt: number;
+}> = ({ clientName, reviewed, redirectOrigin, user, scopes, flowId, csrf, consentExpiresAt }) => {
   const shared = scopes.filter((s): s is Exclude<Scope, "openid"> => s !== "openid");
   return (
     <Layout title={`${clientName} 정보 제공 동의`}>
       <h1 class="idp-title">{clientName}에 로그인</h1>
       <p class="idp-body">
-        <strong>{clientName}</strong>이(가) 아래 정보를 요청합니다. 동의하면 이번 로그인에 한해 이 정보를 전달합니다.
+        <strong>{clientName}</strong>이(가) 아래 정보를 요청합니다. 동의하면 이 정보를 전달합니다.
       </p>
       {reviewed ? null : (
         <Notice kind="warning" title="검토하지 않은 서비스">
@@ -166,9 +201,11 @@ export const ConsentPage: FC<{
         <p class="idp-body">로그인 여부 외에 전달하는 정보는 없습니다.</p>
       )}
       <p class="idp-redirect">
-        동의하면 <strong>{redirectOrigin}</strong>(으)로 이동합니다.
+        동의하면 <strong>{redirectOrigin}</strong>(으)로 이동합니다. 동의는 <strong>{kstDate(consentExpiresAt)}</strong>
+        까지 1년간 저장되며, 그동안 이 서비스에 로그인할 때는 다시 묻지 않습니다.
       </p>
       <form method="post" action="/consent">
+        <input type="hidden" name="flow" value={flowId} />
         <input type="hidden" name="csrf" value={csrf} />
         <div class="idp-actions">
           <button type="submit" name="decision" value="deny" class="cds--btn cds--btn--lg cds--layout--size-lg cds--btn--secondary">
@@ -179,10 +216,108 @@ export const ConsentPage: FC<{
           </button>
         </div>
       </form>
-      <p class="idp-note">B-CUBE 통합 로그인은 비밀번호와 학생 정보를 저장하지 않습니다.</p>
+      <p class="idp-note">
+        B-CUBE 통합 로그인은 비밀번호와 학생 정보를 저장하지 않습니다. 어느 서비스에 어떤 항목을 동의했는지만 저장합니다.
+        동의한 내용은 <a href="/consents">내 동의 관리</a>에서 확인하고 철회할 수 있습니다.
+      </p>
     </Layout>
   );
 };
+
+/** 동의 관리 화면의 SP 하나 */
+export interface ConsentEntry {
+  clientId: string;
+  /** 삭제된 SP면 null */
+  clientName: string | null;
+  origins: string[];
+  scopes: Scope[];
+  grantedAt: number;
+  expiresAt: number;
+}
+
+/** 저장한 값이 없는 항목은 무엇을 전달하는지 설명한다. */
+function providedValue(scope: Exclude<Scope, "openid">, account: { email: string; name?: string | undefined }): Child {
+  switch (scope) {
+    case "email":
+      return <div class="idp-value">{account.email}</div>;
+    case "profile":
+      return <div class="idp-value">{account.name ?? "(이름 없음)"}</div>;
+    case "student":
+    case "sohakoe":
+      return <div class="idp-value idp-muted-value">로그인할 때마다 학사 시스템에서 조회해 전달합니다.</div>;
+  }
+}
+
+export const ConsentsPage: FC<{
+  account: { email: string; name?: string | undefined };
+  csrf: string;
+  entries: ConsentEntry[];
+  /** 방금 철회한 SP 이름 */
+  revoked?: string | undefined;
+}> = ({ account, csrf, entries, revoked }) => (
+  <Layout title="내 동의 관리">
+    <h1 class="idp-title">내 동의 관리</h1>
+    <p class="idp-body">
+      B-CUBE 통합 로그인으로 정보를 제공하기로 동의한 서비스입니다. 동의를 철회하면 다음 로그인부터 다시 동의를 묻습니다.
+    </p>
+    <div class="idp-account">{account.email}</div>
+    {revoked ? (
+      <Notice kind="info" title={`${revoked}에 대한 동의를 철회했습니다.`}>
+        이미 제공한 정보의 삭제는 해당 서비스에 요청해야 합니다.
+      </Notice>
+    ) : null}
+    {entries.length === 0 ? (
+      <p class="idp-body">동의한 서비스가 없습니다.</p>
+    ) : (
+      entries.map((e) => {
+        const name = e.clientName ?? `삭제된 서비스 (${e.clientId})`;
+        const shared = e.scopes.filter((s): s is Exclude<Scope, "openid"> => s !== "openid");
+        return (
+          <section class="idp-sp">
+            <h2 class="idp-sp-name">{name}</h2>
+            <dl class="idp-pairs idp-sp-meta">
+              {e.origins.length > 0 ? (
+                <>
+                  <dt>주소</dt>
+                  <dd>{e.origins.join(", ")}</dd>
+                </>
+              ) : null}
+              <dt>동의한 날</dt>
+              <dd>{kstDate(e.grantedAt)}</dd>
+              <dt>동의 기한</dt>
+              <dd>{kstDate(e.expiresAt)}</dd>
+            </dl>
+            {shared.length > 0 ? (
+              <ul class="idp-scopes">
+                {shared.map((s) => (
+                  <li>
+                    <div class="idp-scope-label">{SCOPE_LABELS[s]}</div>
+                    {providedValue(s, account)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p class="idp-body">로그인 여부 외에 제공하는 정보는 없습니다.</p>
+            )}
+            <form method="post" action="/consents/revoke">
+              <input type="hidden" name="csrf" value={csrf} />
+              <input type="hidden" name="client_id" value={e.clientId} />
+              <button type="submit" class="cds--btn cds--btn--md cds--layout--size-md cds--btn--danger--tertiary">
+                {name} 동의 철회
+              </button>
+            </form>
+          </section>
+        );
+      })
+    )}
+    <form method="post" action="/consents/logout" class="idp-sp-logout">
+      <input type="hidden" name="csrf" value={csrf} />
+      <button type="submit" class="cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost">
+        로그아웃
+      </button>
+    </form>
+  </Layout>
+);
 
 export const DevLoginPage: FC<{ csrf: string; admin: boolean }> = ({ csrf, admin }) => (
   <Layout title="개발용 로그인">

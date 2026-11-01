@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import type { Config } from "./env";
 import { adminRoutes } from "./routes/admin";
+import { consentsRoutes } from "./routes/consents";
 import { devLoginRoutes, loginRoutes } from "./routes/login";
-import { errorPage } from "./respond";
+import { errorPage, homePage } from "./respond";
 import { oidcRoutes } from "./routes/oidc";
 import { registerRoutes } from "./routes/register";
 import { securityHeaders } from "./security";
@@ -21,7 +22,7 @@ export function createApp(config: Config): Hono<HonoEnv> {
     await next();
   });
 
-  app.get("/", (c) => c.redirect("/.well-known/openid-configuration", 302));
+  app.get("/", homePage);
   app.get("/health", async (c) => {
     await c.env.DB.clients.estimatedDocumentCount();
     return c.json({ status: "ok", time: new Date().toISOString() });
@@ -30,6 +31,7 @@ export function createApp(config: Config): Hono<HonoEnv> {
   app.route("/", loginRoutes);
   app.route("/", registerRoutes);
   app.route("/admin", adminRoutes);
+  app.route("/consents", consentsRoutes);
   if (config.devFakeLogin) app.route("/", devLoginRoutes);
 
   app.notFound((c) => errorPage(c, 404, "페이지를 찾을 수 없습니다", "요청한 주소가 없습니다."));

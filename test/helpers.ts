@@ -143,7 +143,9 @@ export async function installFakes(): Promise<void> {
     });
 }
 
-export function resetFakes(): void {
+export async function resetFakes(): Promise<void> {
+  // 기억한 동의가 다음 테스트의 동의 화면을 건너뛰게 하지 않도록 지운다.
+  await (await testDb()).consents.deleteMany({});
   google.claims = null;
   mhaksa.users = new Map();
   mhaksa.schEmail = new Map();
@@ -229,12 +231,24 @@ export function csrfFrom(html: string): string {
   return m[1]!;
 }
 
+/** 동의 화면 폼의 흐름 id와 CSRF 토큰 */
+export function consentForm(html: string): { flow: string; csrf: string } {
+  const m = /name="flow" value="([^"]+)"/.exec(html);
+  if (!m) throw new Error("흐름 id가 없음");
+  return { flow: m[1]!, csrf: csrfFrom(html) };
+}
+
+/** 콜백 응답이 동의 화면으로 보내는지 */
+export function isConsentRedirect(res: Response): boolean {
+  return /^\/consent\?flow=[\w-]+$/.test(res.headers.get("Location") ?? "");
+}
+
 /** 동의 화면에서 동의하고 SP로 돌아온 리다이렉트 주소를 돌려준다. */
 export async function loginAndConsent(browser: Browser, email: string, opts: AuthorizeOptions = {}) {
   const { res, verifier } = await loginUntilConsent(browser, email, opts);
-  if (res.headers.get("Location") !== "/consent") throw new Error(`동의 화면으로 가지 않음: ${res.status}`);
-  const page = await browser.fetch("/consent");
-  const done = await browser.postForm("/consent", { csrf: csrfFrom(await page.text()), decision: "allow" });
+  if (!isConsentRedirect(res)) throw new Error(`동의 화면으로 가지 않음: ${res.status}`);
+  const page = await browser.fetch(res.headers.get("Location")!);
+  const done = await browser.postForm("/consent", { ...consentForm(await page.text()), decision: "allow" });
   return { location: new URL(done.headers.get("Location")!), verifier };
 }
 
@@ -273,6 +287,19 @@ export async function adminLogin(browser: Browser, email = ADMIN_EMAIL): Promise
   if (res.headers.get("Location") !== "/admin") return { res, csrf: null };
   const home = await browser.fetch("/admin");
   return { res, csrf: csrfFrom(await home.text()) };
+}
+
+/** Google 로그인을 거쳐 내 동의 관리 화면을 연다. 화면과 CSRF 토큰을 돌려준다. */
+export async function accountLogin(browser: Browser, email: string): Promise<{ html: string; csrf: string }> {
+  const start = await browser.fetch("/consents/login");
+  const googleUrl = new URL(start.headers.get("Location")!);
+  google.claims = googleUser(email);
+  const res = await browser.fetch(
+    `/callback/google?state=${googleUrl.searchParams.get("state")}&code=${googleUrl.searchParams.get("nonce")}`,
+  );
+  if (res.headers.get("Location") !== "/consents") throw new Error(`동의 관리 화면으로 가지 않음: ${res.status}`);
+  const html = await (await browser.fetch("/consents")).text();
+  return { html, csrf: csrfFrom(html) };
 }
 
 export function register(token: string | null, body: unknown) {

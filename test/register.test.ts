@@ -5,8 +5,9 @@ import {
   appFetch,
   basicAuth,
   Browser,
-  csrfFrom,
+  consentForm,
   installFakes,
+  isConsentRedirect,
   ISSUER,
   loginAndConsent,
   loginUntilConsent,
@@ -76,9 +77,9 @@ describe("RFC 7591 등록", () => {
       redirectUri: SP_REDIRECT,
       scope: "openid email",
     });
-    expect(res.headers.get("Location")).toBe("/consent");
+    expect(isConsentRedirect(res)).toBe(true);
     // 관리자가 검토하지 않은 SP는 동의 화면에 경고와 이동할 주소를 보여준다.
-    const html = await (await browser.fetch("/consent")).text();
+    const html = await (await browser.fetch(res.headers.get("Location")!)).text();
     expect(html).toContain("검토하지 않은 서비스");
     expect(html).toContain("https://new-sp.example.com");
 
@@ -143,8 +144,9 @@ describe("민감한 scope 승인", () => {
 
     await setClientStatus(await testDb(), client.client_id, "active", "t-admin@ajou.ac.kr");
     const browser = new Browser();
-    expect((await loginUntilConsent(browser, "hong@ajou.ac.kr", opts)).res.headers.get("Location")).toBe("/consent");
-    const html = await (await browser.fetch("/consent")).text();
+    const { res: approved } = await loginUntilConsent(browser, "hong@ajou.ac.kr", opts);
+    expect(isConsentRedirect(approved)).toBe(true);
+    const html = await (await browser.fetch(approved.headers.get("Location")!)).text();
     expect(html).not.toContain("검토하지 않은 서비스");
     for (const v of Object.values(SENSITIVE)) expect(html).not.toContain(v);
   });
@@ -193,10 +195,14 @@ describe("민감한 scope 승인", () => {
   it("동의 화면을 띄운 사이에 중지되면 코드를 주지 않는다", async () => {
     const client = await registerOk();
     const browser = new Browser();
-    await loginUntilConsent(browser, "hong@ajou.ac.kr", { clientId: client.client_id, redirectUri: SP_REDIRECT, scope: "openid" });
-    const csrf = csrfFrom(await (await browser.fetch("/consent")).text());
+    const { res: callback } = await loginUntilConsent(browser, "hong@ajou.ac.kr", {
+      clientId: client.client_id,
+      redirectUri: SP_REDIRECT,
+      scope: "openid",
+    });
+    const form = consentForm(await (await browser.fetch(callback.headers.get("Location")!)).text());
     await setClientStatus(await testDb(), client.client_id, "suspended");
-    const res = await browser.postForm("/consent", { csrf, decision: "allow" });
+    const res = await browser.postForm("/consent", { ...form, decision: "allow" });
     const location = new URL(res.headers.get("Location")!);
     expect(location.searchParams.get("error")).toBe("unauthorized_client");
     expect(location.searchParams.has("code")).toBe(false);
