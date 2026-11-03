@@ -394,7 +394,7 @@ describe("화면", () => {
     const res = await appFetch(`${ISSUER}/`);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("B-CUBE 통합 로그인");
+    expect(html).toContain("B-CUBE 인증 플랫폼");
     expect(html).toContain('href="/consents"');
     expect(html).toContain('href="/.well-known/openid-configuration"');
     expect(html).toContain('href="https://source.example.com/idp"');
@@ -407,13 +407,63 @@ describe("화면", () => {
     expect(bad.status).toBe(500);
   });
 
-  it("모든 사용자 화면의 B-CUBE 통합 로그인은 안내 페이지로 가는 링크다", async () => {
+  it("안내 페이지는 한국어와 영문 로고를 모두 싣고 다크 모드에는 다크 로고를 쓴다", async () => {
+    const html = await (await appFetch(`${ISSUER}/`)).text();
+    for (const lang of ["ko", "en"]) {
+      expect(html).toContain(`<picture class="idp-logo-${lang}">`);
+      expect(html).toContain(
+        `<source srcset="/assets/b-cube-idp-${lang}-dark-logo.png" media="(prefers-color-scheme: dark)"`,
+      );
+      expect(html).toContain(`src="/assets/b-cube-idp-${lang}-logo.png"`);
+    }
+  });
+
+  it("안내 페이지의 로고는 안내 페이지로 가는 링크이고 상단 브랜드 링크는 없다", async () => {
+    const html = await (await appFetch(`${ISSUER}/`)).text();
+    expect(html).toMatch(/<a href="\/" class="idp-logo-link"><picture /);
+    expect(html).toContain("<title>B-CUBE 인증 플랫폼</title>");
+    expect(html).toContain('alt="B-CUBE 인증 플랫폼"');
+    expect(html).not.toContain('class="idp-brand"');
+  });
+
+  it("안내 페이지에만 오픈그래프를 넣고 이미지는 흰 배경 한국어 로고의 절대 주소를 쓴다", async () => {
+    const html = await (await appFetch(`${ISSUER}/`)).text();
+    expect(html).toContain('<meta property="og:title" content="B-CUBE 인증 플랫폼"');
+    expect(html).toContain(`<meta property="og:url" content="${ISSUER}/"`);
+    expect(html).toContain(`<meta property="og:image" content="${ISSUER}/assets/b-cube-idp-ko-og.png"`);
+    expect(html).toContain('<meta property="og:image:width" content="1200"');
+    expect(html).toContain('<meta property="og:image:height" content="630"');
+
+    const other = await (await appFetch(`${ISSUER}/nope`)).text();
+    expect(other).not.toContain("og:");
+  });
+
+  it("안내 페이지에만 YouTube 영상 프레임을 허용한다", async () => {
+    const home = await appFetch(`${ISSUER}/`);
+    expect(home.headers.get("Content-Security-Policy")).toContain("frame-src https://www.youtube-nocookie.com;");
+    const html = await home.text();
+    expect(html).toContain('src="https://www.youtube-nocookie.com/embed/QWt8p1IrwgY"');
+    expect(html).toContain('referrerpolicy="strict-origin-when-cross-origin"');
+    expect(html).toContain("학사정보조회");
+
+    const other = await appFetch(`${ISSUER}/nope`);
+    expect(other.headers.get("Content-Security-Policy")).not.toContain("frame-src");
+  });
+
+  it("모든 사용자 화면의 B-CUBE 인증 플랫폼은 안내 페이지로 가는 링크다", async () => {
     const browser = new Browser();
     const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", { scope: "openid email" });
     const consent = await (await browser.fetch(res.headers.get("Location")!)).text();
     const notFound = await (await appFetch(`${ISSUER}/nope`)).text();
     for (const html of [consent, notFound]) {
-      expect(html).toMatch(/<p class="idp-brand"><a href="\/">B-CUBE 통합 로그인<\/a><\/p>/);
+      expect(html).toMatch(/<p class="idp-brand"><a href="\/">B-CUBE 인증 플랫폼<\/a><\/p>/);
+    }
+  });
+
+  it("모든 화면에 파비콘을 건다", async () => {
+    for (const path of ["/", "/nope"]) {
+      const html = await (await appFetch(`${ISSUER}${path}`)).text();
+      expect(html).toContain('<link rel="icon" type="image/png" href="/assets/b-cube-logo.png"');
     }
   });
 
