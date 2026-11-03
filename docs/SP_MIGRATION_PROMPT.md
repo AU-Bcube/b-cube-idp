@@ -63,7 +63,7 @@ Discovery: {ISSUER}/.well-known/openid-configuration 을 먼저 읽어 아래 �
 | token_endpoint | `{ISSUER}/token` |
 | userinfo_endpoint | `{ISSUER}/userinfo` (보통 필요 없다. id_token에 모든 클레임이 있다) |
 | jwks_uri | `{ISSUER}/jwks.json` |
-| 흐름 | Authorization Code + PKCE. `code_challenge_method=S256` 필수. `state` 필수. `nonce` 권장(쓰면 id_token에서 확인) |
+| 흐름 | Authorization Code + PKCE. `code_challenge_method=S256` 필수. `state` 필수(1280자 이하). `nonce` 권장(쓰면 id_token에서 확인) |
 | response_type | `code`만 |
 | 클라이언트 인증 | `client_secret_basic`(기본) 또는 `client_secret_post`. 등록할 때 정한 방식을 쓴다 |
 | id_token 서명 | `ES256`. JWKS로 검증. `kid`가 바뀌면 JWKS를 다시 받는다 |

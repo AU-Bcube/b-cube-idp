@@ -89,6 +89,28 @@ describe("/authorize 검증", () => {
     expect(location.searchParams.get("iss")).toBe(ISSUER);
   });
 
+  it.each([
+    ["없으면", "", "state is required"],
+    ["1280자를 넘으면", "s".repeat(1281), "state is too long"],
+  ])("state가 %s invalid_request로 돌려준다", async (_name, state, description) => {
+    const { url } = await authorizeUrl({ extra: { state } });
+    const location = new URL((await appFetch(`${ISSUER}${url}`)).headers.get("Location")!);
+    expect(location.searchParams.get("error")).toBe("invalid_request");
+    expect(location.searchParams.get("error_description")).toBe(description);
+  });
+
+  it("1280자 state와 512자 nonce로도 흐름 쿠키가 브라우저 한도(4096바이트) 안에 든다", async () => {
+    // Cloudflare Access는 원래 접속 URL을 담아 state가 700자를 넘는다. 흐름 쿠키에 state가 그대로 들어간다.
+    mhaksa.users.set("hong", "202600123");
+    const browser = new Browser();
+    const { res } = await loginUntilConsent(browser, "hong@ajou.ac.kr", {
+      extra: { state: "s".repeat(1280), nonce: "n".repeat(512) },
+    });
+    expect(isConsentRedirect(res)).toBe(true);
+    const [name, value] = [...browser.cookies][0]!;
+    expect(name.length + 1 + value.length).toBeLessThan(4096);
+  });
+
   it("SP에 허용되지 않은 scope는 거절한다", async () => {
     const { url } = await authorizeUrl({
       clientId: OTHER_CLIENT_ID,
