@@ -6,8 +6,8 @@ import { SCOPE_LABELS, type Scope } from "./scopes";
 import type { SohakoeClaim, StudentClaim } from "./student";
 import type { AuthenticatedUser } from "./types";
 
-/** 링크 미리보기(오픈그래프)에 쓰는 값. 미리보기 수집기가 읽도록 주소는 ISSUER로 만든 절대 주소를 쓴다. */
-type OpenGraph = { issuer: string; description: string };
+/** 링크 미리보기(오픈그래프)에 쓰는 값. 수집기가 읽도록 origin으로 절대 주소를 만든다. */
+type OpenGraph = { origin: string; description: string };
 
 /** Carbon 스타일과 글꼴. 스타일은 public/assets/app.css(`pnpm build:css`)에서 온다. */
 export const PageHead: FC<{ title: string; og?: OpenGraph }> = ({ title, og }) => (
@@ -23,9 +23,9 @@ export const PageHead: FC<{ title: string; og?: OpenGraph }> = ({ title, og }) =
         <meta property="og:locale" content="ko_KR" />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={og.description} />
-        <meta property="og:url" content={`${og.issuer}/`} />
+        <meta property="og:url" content={`${og.origin}/`} />
         {/* 투명 로고는 어두운 미리보기에서 글자가 사라지므로 흰 배경으로 만든 이미지를 쓴다. */}
-        <meta property="og:image" content={`${og.issuer}/assets/b-cube-idp-ko-og.png`} />
+        <meta property="og:image" content={`${og.origin}/assets/b-cube-idp-ko-og.png`} />
         <meta property="og:image:type" content="image/png" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
@@ -110,15 +110,15 @@ export const ErrorPage: FC<{ title: string; message: string }> = ({ title, messa
 );
 
 /** 루트(/) 안내 페이지. 주소창에 IdP 주소를 직접 입력한 사용자를 위한 화면이다. */
-export const HomePage: FC<{ issuer: string; emailDomain: string; sourceUrl: string }> = ({
-  issuer,
+export const HomePage: FC<{ origin: string; emailDomain: string; sourceUrl: string }> = ({
+  origin,
   emailDomain,
   sourceUrl,
 }) => (
   <Layout
     title="B-CUBE 인증 플랫폼"
     brand={false}
-    og={{ issuer, description: `아주대학교 Google 계정(@${emailDomain})으로 B-CUBE 운영서비스에 로그인할 수 있습니다.` }}
+    og={{ origin, description: `비큐브 인증 플랫폼은 아주대학교 학생에게 통합 로그인을 제공합니다.` }}
   >
     {/* 스크립트 없이 prefers-color-scheme으로 로고를 고른다. 이미지는 `pnpm build:css`가 복사한다. */}
     <h1>

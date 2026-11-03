@@ -8,6 +8,8 @@ import type { MhaksaClaims } from "./student";
 export interface HonoEnv {
   Bindings: {
     DB: Collections;
+    /** Deploy Preview와 브랜치 배포의 주소. 오픈그래프에만 쓴다. OIDC 주소는 미리보기에서도 ISSUER다. */
+    previewOrigin?: string;
   };
   Variables: {
     config: Config;
