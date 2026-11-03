@@ -11,7 +11,9 @@ import { DevLoginPage, ErrorPage, HomePage } from "./views";
 export function homePage(c: Context<HonoEnv>) {
   const { issuer, allowedEmailDomain, sourceUrl } = c.var.config;
   c.header("Content-Security-Policy", csp("'self'", "https://www.youtube-nocookie.com"));
-  return c.html(<HomePage issuer={issuer} emailDomain={allowedEmailDomain} sourceUrl={sourceUrl} />);
+  return c.html(
+    <HomePage origin={c.env.previewOrigin ?? issuer} emailDomain={allowedEmailDomain} sourceUrl={sourceUrl} />,
+  );
 }
 
 export function errorPage(c: Context<HonoEnv>, status: ContentfulStatusCode, title: string, message: string) {

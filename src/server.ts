@@ -12,8 +12,11 @@ function configErrorResponse(): Response {
   return res;
 }
 
+/** 요청 주소를 오픈그래프 주소로 쓰는 Netlify 배포 컨텍스트. 운영에서는 요청의 Host를 믿지 않고 ISSUER를 쓴다. */
+const PREVIEW_DEPLOY_CONTEXTS: ReadonlySet<string> = new Set(["deploy-preview", "branch-deploy"]);
+
 /** 플랫폼과 무관한 요청 처리. Netlify Function(netlify/functions/idp.mts)과 테스트가 이 함수를 부른다. */
-export async function handle(request: Request, env: RawEnv): Promise<Response> {
+export async function handle(request: Request, env: RawEnv, deployContext?: string): Promise<Response> {
   let config;
   try {
     config = getConfig(env);
@@ -22,5 +25,7 @@ export async function handle(request: Request, env: RawEnv): Promise<Response> {
     console.error("[config]", err instanceof Error ? err.message : err);
     return configErrorResponse();
   }
-  return getApp(config).fetch(request, { DB: await getCollections(config) });
+  const previewOrigin =
+    deployContext && PREVIEW_DEPLOY_CONTEXTS.has(deployContext) ? new URL(request.url).origin : undefined;
+  return getApp(config).fetch(request, { DB: await getCollections(config), previewOrigin });
 }

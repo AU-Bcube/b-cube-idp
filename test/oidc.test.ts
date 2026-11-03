@@ -2,6 +2,7 @@ import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from "jose";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CONSENT_TTL_MS } from "../src/consents";
 import { MAX_FLOWS } from "../src/flow";
+import { handle } from "../src/server";
 import {
   appFetch,
   appWith,
@@ -436,6 +437,28 @@ describe("화면", () => {
 
     const other = await (await appFetch(`${ISSUER}/nope`)).text();
     expect(other).not.toContain("og:");
+  });
+
+  it("미리보기 배포의 오픈그래프만 요청 주소를 쓰고 OIDC 주소는 ISSUER를 유지한다", async () => {
+    const PREVIEW = "https://deploy-preview-1--example.netlify.app";
+    for (const deployContext of ["deploy-preview", "branch-deploy"]) {
+      const html = await (await handle(new Request(`${PREVIEW}/`), process.env, deployContext)).text();
+      expect(html).toContain(`<meta property="og:url" content="${PREVIEW}/"`);
+      expect(html).toContain(`<meta property="og:image" content="${PREVIEW}/assets/b-cube-idp-ko-og.png"`);
+    }
+
+    const discovery = await handle(
+      new Request(`${PREVIEW}/.well-known/openid-configuration`),
+      process.env,
+      "deploy-preview",
+    );
+    expect(((await discovery.json()) as { issuer: string }).issuer).toBe(ISSUER);
+
+    for (const deployContext of ["production", undefined]) {
+      const html = await (await handle(new Request(`${PREVIEW}/`), process.env, deployContext)).text();
+      expect(html).toContain(`<meta property="og:url" content="${ISSUER}/"`);
+      expect(html).not.toContain(PREVIEW);
+    }
   });
 
   it("안내 페이지에만 YouTube 영상 프레임을 허용한다", async () => {
