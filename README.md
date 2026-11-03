@@ -2,8 +2,8 @@
 
 # B-CUBE-IDP
 
-<img src="assets/idp-ko-logo.png" height="84" style="margin-right: 32;">
-<img src="assets/idp-en-logo.png" height="84">
+<img src="assets/b-cube-idp-ko-logo.png" height="84" style="margin-right: 32;">
+<img src="assets/b-cube-idp-en-logo.png" height="84">
 
 B-CUBE 서비스(SP)들이 함께 쓰는 OpenID Connect IdP. Netlify Functions(Node)에서 동작하고 MongoDB에 저장한다.
 
@@ -19,7 +19,7 @@ SP 저장소에서 Claude Code로 기존 인증을 이 IdP로 옮길 때는 [doc
 
 ## 내 동의 확인과 철회
 
-B-CUBE 통합 로그인으로 서비스(SP)에 정보를 제공하기로 동의한 내용은 **https://id.b-cube.kr/consents** 에서 확인하고 철회한다.
+B-CUBE 인증 플랫폼으로 서비스(SP)에 정보를 제공하기로 동의한 내용은 **https://id.b-cube.kr/consents** 에서 확인하고 철회한다.
 https://id.b-cube.kr 첫 화면의 "내 동의 관리" 버튼이나 동의 화면 하단의 "내 동의 관리" 링크로도 들어갈 수 있다.
 
 1. https://id.b-cube.kr/consents 에 접속해 학교 Google 계정(`@ajou.ac.kr`)으로 로그인한다.
@@ -122,7 +122,7 @@ pnpm typecheck
 ```
 
 화면은 IBM Carbon(`@carbon/styles`)을 쓰는 서버 렌더링이다. 스크립트는 없고, 다크 모드는 `prefers-color-scheme`을 따른다.
-스타일 원본은 [src/styles/app.scss](src/styles/app.scss)이고, `pnpm build:css`가 `public/assets/app.css`로 컴파일한다. 이 파일은 커밋하지 않는다.
+스타일 원본은 [src/styles/app.scss](src/styles/app.scss)이고, `pnpm build:css`가 `public/assets/app.css`로 컴파일하고 로고, 파비콘, 오픈그래프 이미지를 `assets/`에서 `public/assets/`로 복사한다. `public/assets/`는 커밋하지 않는다.
 `pnpm dev`와 Netlify 빌드는 먼저 CSS를 빌드한다.
 MongoDB 인덱스는 처음 연결할 때 코드가 만든다([src/db.ts](src/db.ts)). 따로 마이그레이션할 것은 없다.
 테스트는 mongodb-memory-server로 메모리 MongoDB를 띄운다. 처음 실행할 때 mongod 바이너리를 내려받는다.

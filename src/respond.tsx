@@ -4,12 +4,14 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { randomToken, sha256Base64url } from "./crypto";
 import { newFlowId, saveFlow } from "./flow";
 import { buildGoogleAuthUrl } from "./google";
+import { csp } from "./security";
 import type { FlowPayload, HonoEnv } from "./types";
 import { DevLoginPage, ErrorPage, HomePage } from "./views";
 
 export function homePage(c: Context<HonoEnv>) {
-  const { allowedEmailDomain, sourceUrl } = c.var.config;
-  return c.html(<HomePage emailDomain={allowedEmailDomain} sourceUrl={sourceUrl} />);
+  const { issuer, allowedEmailDomain, sourceUrl } = c.var.config;
+  c.header("Content-Security-Policy", csp("'self'", "https://www.youtube-nocookie.com"));
+  return c.html(<HomePage issuer={issuer} emailDomain={allowedEmailDomain} sourceUrl={sourceUrl} />);
 }
 
 export function errorPage(c: Context<HonoEnv>, status: ContentfulStatusCode, title: string, message: string) {

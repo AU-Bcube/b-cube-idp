@@ -168,6 +168,41 @@ ul {
   }
 }
 
+.idp-logo-link {
+  display: block;
+  width: fit-content;
+
+  .idp-logo-ko {
+    display: block;
+  }
+
+  .idp-logo-en {
+    display: none;
+  }
+
+  // 터치 화면은 탭한 뒤 호버 상태가 남으므로 마우스가 있을 때만 바꾼다.
+  @media (hover: hover) {
+    &:hover .idp-logo-ko {
+      display: none;
+    }
+
+    &:hover .idp-logo-en {
+      display: block;
+    }
+  }
+}
+
+// 한국어와 영문 로고는 가로 길이가 달라 높이를 고정한다. 그래야 바뀔 때 큐브 크기와 아래 내용 위치가 그대로다.
+.idp-logo {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: 5.5rem;
+  margin-bottom: $spacing-06;
+  object-fit: contain;
+  object-position: left;
+}
+
 .idp-title {
   @include type.type-style('heading-04');
   margin-bottom: $spacing-05;
@@ -313,9 +348,32 @@ ul {
 }
 
 // 안내 페이지의 주 버튼은 카드 폭에 맞춘다.
+.idp-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-bottom: $spacing-06;
+  border: 0;
+}
+
+.idp-feature-list {
+  margin-bottom: $spacing-06;
+  padding-left: $spacing-06;
+  color: var(--cds-text-secondary);
+  font-size: 1rem;
+  line-height: $line-height-body;
+  list-style: disc;
+
+  strong {
+    color: var(--cds-text-primary);
+    font-weight: 600;
+  }
+}
+
 .idp-home-action {
   width: 100%;
   max-width: none;
+  margin-bottom: $spacing-07;
 }
 
 // ---------------------------------------------------------------------------

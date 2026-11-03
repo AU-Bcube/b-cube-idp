@@ -6,13 +6,32 @@ import { SCOPE_LABELS, type Scope } from "./scopes";
 import type { SohakoeClaim, StudentClaim } from "./student";
 import type { AuthenticatedUser } from "./types";
 
+/** 링크 미리보기(오픈그래프)에 쓰는 값. 미리보기 수집기가 읽도록 주소는 ISSUER로 만든 절대 주소를 쓴다. */
+type OpenGraph = { issuer: string; description: string };
+
 /** Carbon 스타일과 글꼴. 스타일은 public/assets/app.css(`pnpm build:css`)에서 온다. */
-export const PageHead: FC<{ title: string }> = ({ title }) => (
+export const PageHead: FC<{ title: string; og?: OpenGraph }> = ({ title, og }) => (
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>{title}</title>
+    {og ? (
+      <>
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="B-CUBE 인증 플랫폼" />
+        <meta property="og:locale" content="ko_KR" />
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={og.description} />
+        <meta property="og:url" content={`${og.issuer}/`} />
+        {/* 투명 로고는 어두운 미리보기에서 글자가 사라지므로 흰 배경으로 만든 이미지를 쓴다. */}
+        <meta property="og:image" content={`${og.issuer}/assets/b-cube-idp-ko-og.png`} />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="B-CUBE 인증 플랫폼" />
+      </>
+    ) : null}
     {/* IBM Plex Sans KR, D2Coding: jsDelivr 버전 고정. integrity는 파일이 바뀌면 로드를 막는다. */}
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin="anonymous" />
     <link
@@ -34,6 +53,7 @@ export const PageHead: FC<{ title: string }> = ({ title }) => (
       crossorigin="anonymous"
     />
     <link rel="stylesheet" href="/assets/app.css" />
+    <link rel="icon" type="image/png" href="/assets/b-cube-logo.png" />
   </head>
 );
 
@@ -59,15 +79,22 @@ export const Notice: FC<{ kind: "warning" | "error" | "info"; title: string; chi
   </div>
 );
 
-const Layout: FC<{ title: string; children: Child }> = ({ title, children }) => (
+const Layout: FC<{ title: string; brand?: boolean; og?: OpenGraph; children: Child }> = ({
+  title,
+  brand = true,
+  og,
+  children,
+}) => (
   <html lang="ko">
-    <PageHead title={title} />
+    <PageHead title={title} og={og} />
     <body>
       <div class="idp-center">
         <main class="idp-card cds--layer-two">
-          <p class="idp-brand">
-            <a href="/">B-CUBE 통합 로그인</a>
-          </p>
+          {brand ? (
+            <p class="idp-brand">
+              <a href="/">B-CUBE 인증 플랫폼</a>
+            </p>
+          ) : null}
           {children}
         </main>
       </div>
@@ -83,22 +110,65 @@ export const ErrorPage: FC<{ title: string; message: string }> = ({ title, messa
 );
 
 /** 루트(/) 안내 페이지. 주소창에 IdP 주소를 직접 입력한 사용자를 위한 화면이다. */
-export const HomePage: FC<{ emailDomain: string; sourceUrl: string }> = ({ emailDomain, sourceUrl }) => (
-  <Layout title="B-CUBE 통합 로그인">
-    <h1 class="idp-title">B-CUBE 통합 로그인</h1>
+export const HomePage: FC<{ issuer: string; emailDomain: string; sourceUrl: string }> = ({
+  issuer,
+  emailDomain,
+  sourceUrl,
+}) => (
+  <Layout
+    title="B-CUBE 인증 플랫폼"
+    brand={false}
+    og={{ issuer, description: `아주대학교 Google 계정(@${emailDomain})으로 B-CUBE 운영서비스에 로그인할 수 있습니다.` }}
+  >
+    {/* 스크립트 없이 prefers-color-scheme으로 로고를 고른다. 이미지는 `pnpm build:css`가 복사한다. */}
+    <h1>
+      <a href="/" class="idp-logo-link">
+        {/* 호버하면 CSS가 영문 로고로 바꾼다. */}
+        <picture class="idp-logo-ko">
+          <source srcset="/assets/b-cube-idp-ko-dark-logo.png" media="(prefers-color-scheme: dark)" />
+          <img class="idp-logo" src="/assets/b-cube-idp-ko-logo.png" alt="B-CUBE 인증 플랫폼" width="2282" height="792" />
+        </picture>
+        <picture class="idp-logo-en">
+          <source srcset="/assets/b-cube-idp-en-dark-logo.png" media="(prefers-color-scheme: dark)" />
+          <img class="idp-logo" src="/assets/b-cube-idp-en-logo.png" alt="B-CUBE Identity Platform" width="3080" height="792" />
+        </picture>
+      </a>
+    </h1>
     <p class="idp-body">
-      B-CUBE 서비스에 학교 Google 계정(@{emailDomain})으로 로그인하는 곳입니다. 각 서비스에서 로그인을 누르면 이곳을 거쳐
-      로그인합니다.
+      아주대학교 Google 계정(@{emailDomain})으로 B-CUBE 운영서비스에 로그인할 수 있습니다.
     </p>
     <h2 class="idp-scope-label">내 동의 관리</h2>
     <p class="idp-body">서비스에 제공하기로 동의한 정보를 확인하고, 서비스별로 동의를 철회할 수 있습니다.</p>
     <a href="/consents" class="cds--btn cds--btn--lg cds--layout--size-lg cds--btn--primary idp-home-action">
       내 동의 관리
     </a>
+    <p class="idp-body">
+      B-CUBE 인증 플랫폼은 아주대학교 Google 계정을 인증수단으로 사용하는 IdP입니다.
+    </p>
+    <h2 class="idp-scope-label">IdP가 무엇인가요?</h2>
+    <p class="idp-body">
+      IdP(아이덴티티 제공자)는 여러 서비스의 로그인을 한곳에서 맡아 주는 서비스입니다. 서비스(SP)를 만드는 사람은 회원가입과
+      로그인을 직접 만들지 않아도 되고, 이용자는 학교 계정 하나로 로그인합니다.
+    </p>
+    {/* Referrer-Policy가 same-origin이라 지정하지 않으면 리퍼러가 빠져 YouTube 플레이어가 오류를 낸다. */}
+    <iframe
+      class="idp-video"
+      src="https://www.youtube-nocookie.com/embed/QWt8p1IrwgY"
+      title="Identity Provider(IdP) 설명 영상"
+      referrerpolicy="strict-origin-when-cross-origin"
+      allow="encrypted-media; picture-in-picture; fullscreen"
+      allowfullscreen
+    />
+    <h2 class="idp-scope-label">특징</h2>
+    <ul class="idp-feature-list">
+      <li>
+        <strong>학사정보조회</strong>: 이용자가 동의하면 학번, 이름, 소속, 학년, 학적 상태 등을 학사 시스템에서 조회해
+        서비스에 전달합니다.
+      </li>
+    </ul>
     <p class="idp-note">
-      비밀번호와 학생 정보는 저장하지 않습니다. 어느 서비스에 어떤 항목을 동의했는지만 1년간 저장합니다.
       <br />
-      서비스 개발자: <a href="/.well-known/openid-configuration">OpenID Connect 설정</a>
+      SP 개발자 및 사용희망자: <a href="/.well-known/openid-configuration">OpenID Connect 설정</a>
       {sourceUrl ? (
         <>
           {" "}
@@ -219,7 +289,7 @@ export const ConsentPage: FC<{
         </div>
       </form>
       <p class="idp-note">
-        B-CUBE 통합 로그인은 비밀번호와 학생 정보를 저장하지 않습니다. 어느 서비스에 어떤 항목을 동의했는지만 저장합니다.
+        B-CUBE 인증 플랫폼은 비밀번호와 학생 정보를 저장하지 않습니다. 어느 서비스에 어떤 항목을 동의했는지만 저장합니다.
         동의한 내용은 <a href="/consents">내 동의 관리</a>에서 확인하고 철회할 수 있습니다.
       </p>
     </Layout>
@@ -260,7 +330,7 @@ export const ConsentsPage: FC<{
   <Layout title="내 동의 관리">
     <h1 class="idp-title">내 동의 관리</h1>
     <p class="idp-body">
-      B-CUBE 통합 로그인으로 정보를 제공하기로 동의한 서비스입니다. 동의를 철회하면 다음 로그인부터 다시 동의를 묻습니다.
+      B-CUBE 인증 플랫폼으로 정보를 제공하기로 동의한 서비스입니다. 동의를 철회하면 다음 로그인부터 다시 동의를 묻습니다.
     </p>
     <div class="idp-account">{account.email}</div>
     {revoked ? (

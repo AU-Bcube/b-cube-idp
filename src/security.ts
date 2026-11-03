@@ -1,9 +1,13 @@
 import type { MiddlewareHandler } from "hono";
 
-/** 기본 CSP. 스타일은 /assets/app.css, 글꼴은 jsDelivr에서 온다. 인라인 스타일과 스크립트는 없다. */
-export function csp(formAction = "'self'"): string {
+/**
+ * 기본 CSP. 스타일은 /assets/app.css, 글꼴은 jsDelivr에서 온다. 인라인 스타일과 스크립트는 없다.
+ * frameSrc는 영상을 넣는 안내 페이지(/)만 넘긴다. 로그인과 동의 화면에는 외부 프레임을 허용하지 않는다.
+ */
+export function csp(formAction = "'self'", frameSrc?: string): string {
   return (
     "default-src 'none'; style-src 'self' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; img-src 'self' data:; " +
+    (frameSrc ? `frame-src ${frameSrc}; ` : "") +
     `form-action ${formAction}; frame-ancestors 'none'; base-uri 'none'`
   );
 }
