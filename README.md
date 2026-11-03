@@ -60,7 +60,7 @@ SP ──/token (client_secret + PKCE)──▶ id_token (ES256), access_token
 | `GET /` | 안내 페이지. 서비스 소개, 내 동의 관리 버튼, 개발자용 discovery·소스 코드 링크 |
 | `GET /.well-known/openid-configuration` | Discovery |
 | `GET /jwks.json` | id_token 서명 공개 키 (ES256) |
-| `GET /authorize` | 인가 요청. `response_type=code`, PKCE `S256`, `state` 필수 |
+| `GET /authorize` | 인가 요청. `response_type=code`, PKCE `S256`, `state` 필수(1280자 이하) |
 | `POST /token` | `authorization_code` 교환. `client_secret_basic` 또는 `client_secret_post` |
 | `GET, POST /userinfo` | `Authorization: Bearer <access_token>` |
 | `POST /register` | 동적 등록 (RFC 7591). `Authorization: Bearer <initial access token>` 필수 |
