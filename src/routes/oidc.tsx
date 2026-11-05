@@ -170,7 +170,7 @@ export const oidcRoutes = new Hono<HonoEnv>()
       redirectToClient(c, { redirect_uri: redirectUri, state }, { error, error_description: description });
 
     if (!state) return fail("invalid_request", "state is required");
-    if (state.length > 1280) return fail("invalid_request", "state is too long");
+    if (state.length > 4096) return fail("invalid_request", "state is too long");
     if (q.response_type !== "code") return fail("unsupported_response_type", "only response_type=code is supported");
     if (q.request !== undefined || q.request_uri !== undefined) {
       return fail("request_not_supported", "request objects are not supported");
